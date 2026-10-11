@@ -1,9 +1,12 @@
-
 ```Shell
 // app.use("/", (req, res) => {
 //   res.send("welcome to Raushan");
 // });
-
+//this will  only handle get call to /user
+app.get("/user/:userId/:name/:password" , (req, res)=>{
+    console.log(req.params);
+    res.send({firstName:"Raushan" , lastName:"Kumar"});
+})
 // app.post("/user" , (req, res)=>{
 //     //saving the data
 //     console.log("Save data to  the database");
