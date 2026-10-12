@@ -51,7 +51,13 @@ node server.js
 ```
 
 ### MongoDB
-`database.js` connects to a MongoDB Atlas cluster and practices CRUD on the `Helloworld` database, `user` collection:
+`database.js` connects to a MongoDB Atlas cluster and practices CRUD on the `Helloworld` database, `user` collection. It reads the connection string from a `.env` file in the repo root (`.env` is git-ignored):
+
+```
+BACKEND_URL=mongodb+srv://<user>:<password>@<cluster>/
+```
+
+What it practices:
 
 - `insertOne` / `insertMany`: add documents
 - `find(filter).toArray()`: read documents (`find()` returns a cursor, so call `.toArray()`)
@@ -62,3 +68,38 @@ Things I learned while setting it up:
 - **Database and collection names are case-sensitive.** A wrong name returns `[]` instead of an error, because MongoDB creates databases and collections on first write.
 - **Close the connection with `client.close()`.**
 - **Running an insert script again inserts duplicates.** Comment the insert out after it runs, or check with `findOne` first.
+
+## Project: DevTinder
+
+`project/Devtinder/` is a "Tinder for developers" backend built with **Express 5** and **Mongoose**.
+
+```bash
+cd project/Devtinder
+npm install
+npm run dev     # nodemon, restarts on file changes
+npm start       # plain node
+```
+
+The server connects to MongoDB first and only starts listening on **port 3000** once the connection succeeds.
+
+### Structure
+| Path | What it does |
+| --- | --- |
+| `src/app.js` | Express app: connects to the database, then starts the server and defines routes |
+| `src/config/database.js` | `connectionDB()`: connects Mongoose to the `devTinder` database on Atlas |
+| `src/models/user.js` | `User` model: `firstName`, `lastName`, `email`, `password`, `age`, `gender` |
+| `src/middleware/auth.js` | `adminAuth` and `userAuth` middleware: check a (dummy) token, reply `401` or call `next()` |
+| `src/homework.md` | Notes on routing: `app.use` vs `app.get`, route params, and Express 4 → Express 5 path syntax |
+
+### Routes
+| Method | Path | What it does |
+| --- | --- | --- |
+| `POST` | `/singup` | Saves a hard-coded test user to the `users` collection |
+
+### Express 5 route syntax (from `homework.md`)
+| Express 4 | Express 5 |
+| --- | --- |
+| `/ab?c` | `/a{b}c` |
+| `/user/:id?` | `/user{/:id}` |
+| `*` | `/*splat` or `/{*splat}` |
+| `/ab+c` | regex: `/ab+c/` |
