@@ -87,14 +87,34 @@ The server connects to MongoDB first and only starts listening on **port 3000** 
 | --- | --- |
 | `src/app.js` | Express app: connects to the database, then starts the server and defines routes |
 | `src/config/database.js` | `connectionDB()`: connects Mongoose to the `devTinder` database on Atlas |
-| `src/models/user.js` | `User` model: `firstName`, `lastName`, `email`, `password`, `age`, `gender` |
+| `src/models/user.js` | `User` model: `firstName`, `lastName`, `emailId`, `password`, `age`, `gender` |
 | `src/middleware/auth.js` | `adminAuth` and `userAuth` middleware: check a (dummy) token, reply `401` or call `next()` |
 | `src/homework.md` | Notes on routing: `app.use` vs `app.get`, route params, and Express 4 → Express 5 path syntax |
 
 ### Routes
-| Method | Path | What it does |
-| --- | --- | --- |
-| `POST` | `/singup` | Saves a hard-coded test user to the `users` collection |
+`express.json()` parses JSON request bodies, so every route reads its input from `req.body`.
+
+| Method | Path | Body | What it does |
+| --- | --- | --- | --- |
+| `POST` | `/singup` | User fields, e.g. `{ "firstName": "...", "emailId": "...", ... }` | Creates a user from the request body and saves it to the `users` collection |
+| `GET` | `/user` | `{ "emailId": "..." }` | Finds one user by email (`findOne`); replies `404` if none is found |
+| `GET` | `/feed` | none | Returns every user (`find({})`) |
+| `PATCH` | `/user` | `{ "userId": "...", ...fieldsToUpdate }` | Updates a user by `_id` (`findByIdAndUpdate`) |
+| `DELETE` | `/user` | `{ "userId": "..." }` | Deletes a user by `_id` (`findByIdAndDelete`) |
+
+Example:
+
+```bash
+curl -X POST http://localhost:3000/singup \
+  -H "Content-Type: application/json" \
+  -d '{"firstName":"Raushan","lastName":"Kumar","emailId":"raushan@example.com","password":"secret","age":24,"gender":"male"}'
+```
+
+Things I learned:
+- **`find()` returns an array, `findOne()` returns a document or `null`.** Check `users.length === 0` for the first, `!user` for the second.
+- **`findByIdAndDelete(id)` and `findByIdAndUpdate(id, data)`** take the id directly; passing `{ _id: id }` also works.
+- **Fields not in the schema are ignored** when saving or updating, so the extra `userId` in the `PATCH` body isn't stored.
+- **A `GET` request with a body** works in Postman, but query params (`/user?emailId=...`) are the usual way to send filters.
 
 ### Express 5 route syntax (from `homework.md`)
 | Express 4 | Express 5 |
