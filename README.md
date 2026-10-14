@@ -82,38 +82,82 @@ npm start       # plain node
 
 The server connects to MongoDB first and only starts listening on **port 3000** once the connection succeeds.
 
+### Packages
+| Package | Used for |
+| --- | --- |
+| `express` | Server and routing |
+| `mongoose` | MongoDB models and schema validation |
+| `validator` | Checking emails, strong passwords and URLs |
+| `bcrypt` | Hashing passwords before saving them |
+
 ### Structure
 | Path | What it does |
 | --- | --- |
 | `src/app.js` | Express app: connects to the database, then starts the server and defines routes |
 | `src/config/database.js` | `connectionDB()`: connects Mongoose to the `devTinder` database on Atlas |
-| `src/models/user.js` | `User` model: `firstName`, `lastName`, `emailId`, `password`, `age`, `gender` |
+| `src/models/user.js` | `User` model with schema validation (see below) |
+| `src/utils/validation.js` | `validateSingupData(req)`: checks the signup body before anything touches the database |
 | `src/middleware/auth.js` | `adminAuth` and `userAuth` middleware: check a (dummy) token, reply `401` or call `next()` |
 | `src/homework.md` | Notes on routing: `app.use` vs `app.get`, route params, and Express 4 → Express 5 path syntax |
 
+### User model
+`timestamps: true` adds `createdAt` and `updatedAt` to every user.
+
+| Field | Rules |
+| --- | --- |
+| `firstName` | Required, 5–50 characters, trimmed |
+| `lastName` | Optional |
+| `emailId` | Required, unique, lowercased, trimmed, must be a valid email |
+| `password` | Required; stored as a bcrypt hash, never plain text |
+| `age` | At least 18 |
+| `gender` | `male`, `female` or `other` |
+| `photoUrl` | Must be a valid URL; has a default profile picture |
+| `abbout` | Has a default description |
+| `skills` | Array of strings, at most 10 (checked in the `PATCH` route) |
+
 ### Routes
-`express.json()` parses JSON request bodies, so every route reads its input from `req.body`.
+`express.json()` parses JSON request bodies, so every route reads its input from `req.body`. In Postman, send bodies as **raw → JSON**.
 
 | Method | Path | Body | What it does |
 | --- | --- | --- | --- |
-| `POST` | `/singup` | User fields, e.g. `{ "firstName": "...", "emailId": "...", ... }` | Creates a user from the request body and saves it to the `users` collection |
-| `GET` | `/user` | `{ "emailId": "..." }` | Finds one user by email (`findOne`); replies `404` if none is found |
-| `GET` | `/feed` | none | Returns every user (`find({})`) |
-| `PATCH` | `/user` | `{ "userId": "...", ...fieldsToUpdate }` | Updates a user by `_id` (`findByIdAndUpdate`) |
-| `DELETE` | `/user` | `{ "userId": "..." }` | Deletes a user by `_id` (`findByIdAndDelete`) |
+| `POST` | `/singup` | `{ firstName, lastName, emailId, password }` | Validates the data, hashes the password with bcrypt and saves the user |
+| `POST` | `/login` | `{ emailId, password }` | Finds the user by email and checks the password with `bcrypt.compare` |
+| `GET` | `/user` | `{ "emailId": "..." }` | Finds one user by email; `400` if `emailId` is missing, `404` if not found |
+| `GET` | `/feed` | none | Returns every user |
+| `PATCH` | `/user/:userId` | Fields to update | Updates only allowed fields, with schema validators on; `404` if the user doesn't exist |
+| `DELETE` | `/user` | `{ "userId": "..." }` | Deletes a user by `_id`; `404` if not found |
 
-Example:
+Every route catches errors, logs them with `console.error` and replies `400` with the message, so errors show in both the terminal and Postman.
+
+Signup example:
 
 ```bash
-curl -X POST http://localhost:3000/singup \
-  -H "Content-Type: application/json" \
-  -d '{"firstName":"Raushan","lastName":"Kumar","emailId":"raushan@example.com","password":"secret","age":24,"gender":"male"}'
+curl -X POST http://localhost:3000/singup   -H "Content-Type: application/json"   -d '{"firstName":"Raushan","lastName":"Kumar","emailId":"raushan@example.com","password":"Strong@123"}'
 ```
 
-Things I learned:
+Update example (`skill` instead of `skills` gets `400 invalid update` with the list of allowed fields):
+
+```bash
+curl -X PATCH http://localhost:3000/user/<userId>   -H "Content-Type: application/json"   -d '{"skills":["nextjs","react"],"age":25}'
+```
+
+### Data validation and sanitization
+Three layers check incoming data:
+
+1. **API level, signup:** `validateSingupData` requires a first and last name, a valid email and a strong password (8+ characters with an uppercase letter, a lowercase letter, a number and a symbol). It throws an error, and the route's `catch` sends it back.
+2. **API level, update:** `PATCH` only allows `photoUrl`, `abbout`, `skills`, `gender` and `age`, so nobody can change their email or password through it.
+3. **Schema level:** Mongoose checks the rules in the model on `save()`. Updates only run them when you pass `{ runValidators: true }`.
+
+Signup also builds the user from named fields instead of `new User(req.body)`, so extra fields in the body are never saved.
+
+### Things I learned
 - **`find()` returns an array, `findOne()` returns a document or `null`.** Check `users.length === 0` for the first, `!user` for the second.
-- **`findByIdAndDelete(id)` and `findByIdAndUpdate(id, data)`** take the id directly; passing `{ _id: id }` also works.
-- **Fields not in the schema are ignored** when saving or updating, so the extra `userId` in the `PATCH` body isn't stored.
+- **`findByIdAndUpdate` / `findByIdAndDelete` return `null` for an id that doesn't exist**; they don't throw. Check the result and send `404` yourself.
+- **`findOne({ emailId: undefined })` matches any user**, because Mongoose drops `undefined` fields and runs `findOne({})`. Check the input first.
+- **Never store plain passwords.** `await bcrypt.hash(password, 10)` on signup, `await bcrypt.compare(password, user.password)` on login.
+- **Match exports and imports:** `module.exports = { fn }` goes with `const { fn } = require(...)`; `module.exports = fn` goes with `const fn = require(...)`. Mixing them gives "fn is not a function".
+- **Use the same name in `catch (err)` and inside it.** `catch (error)` followed by `err.message` crashes with `err is not defined` and hides the real error.
+- **Always send a response in `catch`.** If you only `console.log`, Postman waits forever.
 - **A `GET` request with a body** works in Postman, but query params (`/user?emailId=...`) are the usual way to send filters.
 
 ### Express 5 route syntax (from `homework.md`)
