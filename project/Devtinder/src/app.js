@@ -3,9 +3,12 @@ const connectionDB = require("./config/database");
 const User = require("./models/user");
 const { validateSingupData } = require("./utils/validation");
 const bcrypt = require("bcrypt");
+const cookieParser = require("cookie-parser");
+const jwt = require("jsonwebtoken");
 
 const app = express();
 app.use(express.json());
+app.use(cookieParser());
 
 app.post("/singup", async (req, res) => {
   try {
@@ -27,7 +30,6 @@ app.post("/singup", async (req, res) => {
     await user.save();
     res.send("User added successfully");
   } catch (err) {
-    console.error("Error saving the user:", err.message);
     res.status(400).send("Error: " + err.message);
   }
 });
@@ -45,6 +47,12 @@ app.post("/login", async (req, res) => {
     const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (isPasswordValid) {
+      // create a jwt token
+      const token = jwt.sign({ _id: user._id }, "Raushan@1243$4542");
+
+      //Add the token to cookie and  send the response back to the client or user
+      res.cookie("token", token);
+
       res.send("User logged in successfully");
     } else {
       res.status(400).send("Password is not valid");
@@ -54,12 +62,39 @@ app.post("/login", async (req, res) => {
     res.status(400).send("Error: " + err.message);
   }
 });
+
+// profile
+app.get("/profile", async (req, res) => {
+  try {
+    const cookies = req.cookies;
+
+    const { token } = cookies;
+
+    if (!token) {
+      return res.status(401).send("unauthorized");
+    }
+
+    const decodeMessage = await jwt.verify(token, "Raushan@1243$4542");
+
+    const { _id } = decodeMessage;
+
+    const user = await User.findById(_id);
+
+    if (!user) {
+      return res.status(404).send("user not found");
+    }
+
+    res.send(user);
+  } catch (error) {
+    res.status(400).send("ERROR:" + error.message);
+  }
+});
+
 //Get user by email
 app.get("/user", async (req, res) => {
   const userEmail = req.body.emailId;
 
   try {
-    console.log("userEmail", userEmail);
     if (!userEmail) {
       return res.status(400).send("emailId is required");
     }
@@ -76,7 +111,6 @@ app.get("/user", async (req, res) => {
     //     res.send(users);
     // }
   } catch (err) {
-    console.error("something went wrong:", err.message);
     res.status(400).send("something went wrong: " + err.message);
   }
 });
@@ -87,7 +121,6 @@ app.get("/feed", async (req, res) => {
     const users = await User.find({});
     res.send(users);
   } catch (err) {
-    console.error("something went wrong:", err.message);
     res.status(400).send("something went wrong: " + err.message);
   }
 });
@@ -103,7 +136,6 @@ app.delete("/user", async (req, res) => {
     }
     res.send("user deleted successfully");
   } catch (err) {
-    console.error("Error deleting the user:", err.message);
     res.status(400).send("Error deleting the user: " + err.message);
   }
 });
@@ -124,7 +156,6 @@ app.patch("/user/:userId", async (req, res) => {
       const invalidFields = Object.keys(data).filter(
         (k) => !ALLOWED_UPDATE.includes(k),
       );
-      console.error("Invalid update fields:", invalidFields);
       return res.status(400).send({
         error: "invalid update",
         invalidFields,
@@ -133,7 +164,6 @@ app.patch("/user/:userId", async (req, res) => {
     }
 
     if (data?.skills?.length > 10) {
-      console.error("Too many skills:", data.skills.length);
       return res.status(400).send({ error: "skills cannot be more than 10" });
     }
 
@@ -145,7 +175,6 @@ app.patch("/user/:userId", async (req, res) => {
     }
     res.send("user updated successfully");
   } catch (err) {
-    console.error("Error updating the user:", err.message);
     res.status(400).send("Error updating the user: " + err.message);
   }
 });
