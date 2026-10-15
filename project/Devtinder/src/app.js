@@ -5,6 +5,7 @@ const { validateSingupData } = require("./utils/validation");
 const bcrypt = require("bcrypt");
 const cookieParser = require("cookie-parser");
 const jwt = require("jsonwebtoken");
+const { userAuth } = require("./middleware/auth");
 
 const app = express();
 app.use(express.json());
@@ -44,14 +45,15 @@ app.post("/login", async (req, res) => {
       return res.status(404).send("Email is not valid");
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await user.validatePassword(password);
 
     if (isPasswordValid) {
-      // create a jwt token
-      const token = jwt.sign({ _id: user._id }, "Raushan@1243$4542");
+      const token = await user.getJWT();
 
-      //Add the token to cookie and  send the response back to the client or user
-      res.cookie("token", token);
+      res.cookie("token", token, {
+        expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        httpOnly: true,
+      });
 
       res.send("User logged in successfully");
     } else {
@@ -64,21 +66,9 @@ app.post("/login", async (req, res) => {
 });
 
 // profile
-app.get("/profile", async (req, res) => {
+app.get("/profile", userAuth, async (req, res) => {
   try {
-    const cookies = req.cookies;
-
-    const { token } = cookies;
-
-    if (!token) {
-      return res.status(401).send("unauthorized");
-    }
-
-    const decodeMessage = await jwt.verify(token, "Raushan@1243$4542");
-
-    const { _id } = decodeMessage;
-
-    const user = await User.findById(_id);
+    const user = req.user;
 
     if (!user) {
       return res.status(404).send("user not found");
@@ -88,6 +78,13 @@ app.get("/profile", async (req, res) => {
   } catch (error) {
     res.status(400).send("ERROR:" + error.message);
   }
+});
+
+// send connect api
+
+app.post("/sendConnectionRequest", userAuth, async (req, res) => {
+  const user = req.user;
+  res.send(user.firstName + " request sent successfully");
 });
 
 //Get user by email
