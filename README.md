@@ -89,15 +89,17 @@ The server connects to MongoDB first and only starts listening on **port 3000** 
 | `mongoose` | MongoDB models and schema validation |
 | `validator` | Checking emails, strong passwords and URLs |
 | `bcrypt` | Hashing passwords before saving them |
+| `jsonwebtoken` | Creating and verifying the JWT login token |
+| `cookie-parser` | Reading the `token` cookie from `req.cookies` |
 
 ### Structure
 | Path | What it does |
 | --- | --- |
 | `src/app.js` | Express app: connects to the database, then starts the server and defines routes |
 | `src/config/database.js` | `connectionDB()`: connects Mongoose to the `devTinder` database on Atlas |
-| `src/models/user.js` | `User` model with schema validation (see below) |
+| `src/models/user.js` | `User` model with schema validation and the `getJWT()` / `validatePassword()` methods (see below) |
 | `src/utils/validation.js` | `validateSingupData(req)`: checks the signup body before anything touches the database |
-| `src/middleware/auth.js` | `adminAuth` and `userAuth` middleware: check a (dummy) token, reply `401` or call `next()` |
+| `src/middleware/auth.js` | `userAuth` middleware: verifies the JWT from the `token` cookie, loads the user into `req.user` and calls `next()` |
 | `src/homework.md` | Notes on routing: `app.use` vs `app.get`, route params, and Express 4 → Express 5 path syntax |
 
 ### User model
@@ -115,24 +117,54 @@ The server connects to MongoDB first and only starts listening on **port 3000** 
 | `abbout` | Has a default description |
 | `skills` | Array of strings, at most 10 (checked in the `PATCH` route) |
 
+Schema methods (instance methods, so `this` is the user document; use a normal `function`, not an arrow function):
+
+| Method | What it does |
+| --- | --- |
+| `user.getJWT()` | Signs a JWT with `{ _id: user._id }` that expires in 1 day |
+| `user.validatePassword(password)` | Compares the plain password with the stored hash using `bcrypt.compare` |
+
+### Authentication (JWT + cookies)
+1. `POST /login` checks the password with `user.validatePassword()`, creates a token with `user.getJWT()` and sends it back as an `httpOnly` cookie named `token`.
+2. The browser (or Postman) sends that cookie automatically on later requests.
+3. `cookie-parser` puts it in `req.cookies.token`.
+4. `userAuth` verifies it with `jwt.verify`, finds the user by the `_id` inside the token and sets `req.user`. With no token it replies `401`; with an invalid or expired token it replies `400`.
+
+Protect a route by adding the middleware before the handler:
+
+```js
+app.get("/profile", userAuth, (req, res) => res.send(req.user));
+```
+
 ### Routes
 `express.json()` parses JSON request bodies, so every route reads its input from `req.body`. In Postman, send bodies as **raw → JSON**.
 
 | Method | Path | Body | What it does |
 | --- | --- | --- | --- |
 | `POST` | `/singup` | `{ firstName, lastName, emailId, password }` | Validates the data, hashes the password with bcrypt and saves the user |
-| `POST` | `/login` | `{ emailId, password }` | Finds the user by email and checks the password with `bcrypt.compare` |
+| `POST` | `/login` | `{ emailId, password }` | Checks the password and sets the `token` cookie; `404` if the email doesn't exist |
+| `GET` | `/profile` | none (needs login) | Returns the logged-in user from `req.user` |
+| `POST` | `/sendConnectionRequest` | none (needs login) | Placeholder: replies `<firstName> request sent successfully` |
 | `GET` | `/user` | `{ "emailId": "..." }` | Finds one user by email; `400` if `emailId` is missing, `404` if not found |
 | `GET` | `/feed` | none | Returns every user |
 | `PATCH` | `/user/:userId` | Fields to update | Updates only allowed fields, with schema validators on; `404` if the user doesn't exist |
 | `DELETE` | `/user` | `{ "userId": "..." }` | Deletes a user by `_id`; `404` if not found |
 
-Every route catches errors, logs them with `console.error` and replies `400` with the message, so errors show in both the terminal and Postman.
+Routes marked *needs login* use the `userAuth` middleware. Call `/login` first; Postman stores the cookie and sends it on the next requests.
+
+Every route catches errors and replies `400` with the message, so the error shows in Postman.
 
 Signup example:
 
 ```bash
 curl -X POST http://localhost:3000/singup   -H "Content-Type: application/json"   -d '{"firstName":"Raushan","lastName":"Kumar","emailId":"raushan@example.com","password":"Strong@123"}'
+```
+
+Login and profile example (`-c` saves the cookie, `-b` sends it):
+
+```bash
+curl -c cookies.txt -X POST http://localhost:3000/login   -H "Content-Type: application/json"   -d '{"emailId":"raushan@example.com","password":"Strong@123"}'
+curl -b cookies.txt http://localhost:3000/profile
 ```
 
 Update example (`skill` instead of `skills` gets `400 invalid update` with the list of allowed fields):
@@ -155,6 +187,9 @@ Signup also builds the user from named fields instead of `new User(req.body)`, s
 - **`findByIdAndUpdate` / `findByIdAndDelete` return `null` for an id that doesn't exist**; they don't throw. Check the result and send `404` yourself.
 - **`findOne({ emailId: undefined })` matches any user**, because Mongoose drops `undefined` fields and runs `findOne({})`. Check the input first.
 - **Never store plain passwords.** `await bcrypt.hash(password, 10)` on signup, `await bcrypt.compare(password, user.password)` on login.
+- **Put user-specific logic in schema methods.** `getJWT()` and `validatePassword()` live on the model, so routes stay short. They must be `function () {}`, because an arrow function has no `this`.
+- **Store the JWT in an `httpOnly` cookie** so page JavaScript can't read it. Without `cookie-parser`, `req.cookies` is `undefined`.
+- **Keep secrets out of code.** The JWT secret and database URL belong in a `.env` file, not in the source.
 - **Match exports and imports:** `module.exports = { fn }` goes with `const { fn } = require(...)`; `module.exports = fn` goes with `const fn = require(...)`. Mixing them gives "fn is not a function".
 - **Use the same name in `catch (err)` and inside it.** `catch (error)` followed by `err.message` crashes with `err is not defined` and hides the real error.
 - **Always send a response in `catch`.** If you only `console.log`, Postman waits forever.
