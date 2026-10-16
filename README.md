@@ -95,10 +95,13 @@ The server connects to MongoDB first and only starts listening on **port 3000** 
 ### Structure
 | Path | What it does |
 | --- | --- |
-| `src/app.js` | Express app: connects to the database, then starts the server and defines routes |
+| `src/app.js` | Express app: mounts the routers, defines the remaining `/user` and `/feed` routes, connects to the database, then starts the server |
+| `src/routes/auth.js` | `authRouter`: `/signup`, `/login`, `/logout` |
+| `src/routes/profile.js` | `profileRouter`: `/profile/view`, `/profile/edit`, `/profile/password` |
+| `src/routes/request.js` | `requestsRouter`: `/sendConnectionRequest` |
 | `src/config/database.js` | `connectionDB()`: connects Mongoose to the `devTinder` database on Atlas |
 | `src/models/user.js` | `User` model with schema validation and the `getJWT()` / `validatePassword()` methods (see below) |
-| `src/utils/validation.js` | `validateSingupData(req)`: checks the signup body before anything touches the database |
+| `src/utils/validation.js` | `validateSingupData(req)` checks the signup body; `validateEditProfileData(req)` returns `false` if the edit body has a field that isn't allowed |
 | `src/middleware/auth.js` | `userAuth` middleware: verifies the JWT from the `token` cookie, loads the user into `req.user` and calls `next()` |
 | `src/homework.md` | Notes on routing: `app.use` vs `app.get`, route params, and Express 4 → Express 5 path syntax |
 
@@ -115,7 +118,7 @@ The server connects to MongoDB first and only starts listening on **port 3000** 
 | `gender` | `male`, `female` or `other` |
 | `photoUrl` | Must be a valid URL; has a default profile picture |
 | `abbout` | Has a default description |
-| `skills` | Array of strings, at most 10 (checked in the `PATCH` route) |
+| `skills` | Array of strings; defaults to `[]` until you set it through `/profile/edit` |
 
 Schema methods (instance methods, so `this` is the user document; use a normal `function`, not an arrow function):
 
@@ -129,25 +132,42 @@ Schema methods (instance methods, so `this` is the user document; use a normal `
 2. The browser (or Postman) sends that cookie automatically on later requests.
 3. `cookie-parser` puts it in `req.cookies.token`.
 4. `userAuth` verifies it with `jwt.verify`, finds the user by the `_id` inside the token and sets `req.user`. With no token it replies `401`; with an invalid or expired token it replies `400`.
+5. `POST /logout` overwrites the `token` cookie with `null` and an expiry of now, so the browser drops it.
 
 Protect a route by adding the middleware before the handler:
 
 ```js
-app.get("/profile", userAuth, (req, res) => res.send(req.user));
+profileRouter.get("/profile/view", userAuth, (req, res) => res.send(req.user));
 ```
+
+### Routers
+Routes are grouped with `express.Router()` and mounted in `app.js`:
+
+```js
+const authRouter = express.Router();
+authRouter.post("/login", handler);
+module.exports = authRouter;
+
+// app.js
+app.use("/", authRouter);
+```
+
+Express checks the routers in the order they're mounted, and the first matching route handles the request.
 
 ### Routes
 `express.json()` parses JSON request bodies, so every route reads its input from `req.body`. In Postman, send bodies as **raw → JSON**.
 
 | Method | Path | Body | What it does |
 | --- | --- | --- | --- |
-| `POST` | `/singup` | `{ firstName, lastName, emailId, password }` | Validates the data, hashes the password with bcrypt and saves the user |
+| `POST` | `/signup` | `{ firstName, lastName, emailId, password }` | Validates the data, hashes the password with bcrypt and saves the user |
 | `POST` | `/login` | `{ emailId, password }` | Checks the password and sets the `token` cookie; `404` if the email doesn't exist |
-| `GET` | `/profile` | none (needs login) | Returns the logged-in user from `req.user` |
+| `POST` | `/logout` | none | Clears the `token` cookie |
+| `GET` | `/profile/view` | none (needs login) | Returns the logged-in user from `req.user` |
+| `PATCH` | `/profile/edit` | Any of `firstName`, `lastName`, `photoUrl`, `about`, `skills`, `gender`, `age` (needs login) | Copies the fields onto the user and calls `save()`; any other field gives `400 data is not valid` |
+| `PATCH` | `/profile/password` | `{ "password": "..." }` (needs login) | Hashes the new password with bcrypt and saves it |
 | `POST` | `/sendConnectionRequest` | none (needs login) | Placeholder: replies `<firstName> request sent successfully` |
 | `GET` | `/user` | `{ "emailId": "..." }` | Finds one user by email; `400` if `emailId` is missing, `404` if not found |
 | `GET` | `/feed` | none | Returns every user |
-| `PATCH` | `/user/:userId` | Fields to update | Updates only allowed fields, with schema validators on; `404` if the user doesn't exist |
 | `DELETE` | `/user` | `{ "userId": "..." }` | Deletes a user by `_id`; `404` if not found |
 
 Routes marked *needs login* use the `userAuth` middleware. Call `/login` first; Postman stores the cookie and sends it on the next requests.
@@ -157,28 +177,40 @@ Every route catches errors and replies `400` with the message, so the error show
 Signup example:
 
 ```bash
-curl -X POST http://localhost:3000/singup   -H "Content-Type: application/json"   -d '{"firstName":"Raushan","lastName":"Kumar","emailId":"raushan@example.com","password":"Strong@123"}'
+curl -X POST http://localhost:3000/signup   -H "Content-Type: application/json"   -d '{"firstName":"Raushan","lastName":"Kumar","emailId":"raushan@example.com","password":"Strong@123"}'
 ```
 
 Login and profile example (`-c` saves the cookie, `-b` sends it):
 
 ```bash
 curl -c cookies.txt -X POST http://localhost:3000/login   -H "Content-Type: application/json"   -d '{"emailId":"raushan@example.com","password":"Strong@123"}'
-curl -b cookies.txt http://localhost:3000/profile
+curl -b cookies.txt http://localhost:3000/profile/view
 ```
 
-Update example (`skill` instead of `skills` gets `400 invalid update` with the list of allowed fields):
+Edit profile example (`skill` instead of `skills`, or `emailId`, gets `400 data is not valid`):
 
 ```bash
-curl -X PATCH http://localhost:3000/user/<userId>   -H "Content-Type: application/json"   -d '{"skills":["nextjs","react"],"age":25}'
+curl -b cookies.txt -X PATCH http://localhost:3000/profile/edit   -H "Content-Type: application/json"   -d '{"skills":["nextjs","react"],"age":25,"gender":"male"}'
+```
+
+Change password and log out:
+
+```bash
+curl -b cookies.txt -X PATCH http://localhost:3000/profile/password   -H "Content-Type: application/json"   -d '{"password":"NewStrong@123"}'
+curl -b cookies.txt -c cookies.txt -X POST http://localhost:3000/logout
 ```
 
 ### Data validation and sanitization
 Three layers check incoming data:
 
 1. **API level, signup:** `validateSingupData` requires a first and last name, a valid email and a strong password (8+ characters with an uppercase letter, a lowercase letter, a number and a symbol). It throws an error, and the route's `catch` sends it back.
-2. **API level, update:** `PATCH` only allows `photoUrl`, `abbout`, `skills`, `gender` and `age`, so nobody can change their email or password through it.
-3. **Schema level:** Mongoose checks the rules in the model on `save()`. Updates only run them when you pass `{ runValidators: true }`.
+2. **API level, edit profile:** `validateEditProfileData` only allows `firstName`, `lastName`, `photoUrl`, `about`, `skills`, `gender` and `age`, so nobody can change their email or password through `/profile/edit`.
+3. **Schema level:** Mongoose checks the rules in the model on `save()`, so `/profile/edit` rejects a bad `gender`, an `age` under 18 or an invalid `photoUrl`. `findByIdAndUpdate` only runs them when you pass `{ runValidators: true }`.
+
+Known gaps:
+- The edit allow-list says `about`, but the schema field is `abbout`, so `about` passes the check but isn't saved. Use one spelling in both places.
+- `/profile/password` doesn't check password strength or ask for the old password. The schema validator runs on the bcrypt hash, which always looks "strong".
+- `/login` sets the cookie with `expiresIn`, which `res.cookie` ignores (the option is `expires`), so the cookie lasts only until the browser closes.
 
 Signup also builds the user from named fields instead of `new User(req.body)`, so extra fields in the body are never saved.
 
@@ -193,6 +225,10 @@ Signup also builds the user from named fields instead of `new User(req.body)`, s
 - **Match exports and imports:** `module.exports = { fn }` goes with `const { fn } = require(...)`; `module.exports = fn` goes with `const fn = require(...)`. Mixing them gives "fn is not a function".
 - **Use the same name in `catch (err)` and inside it.** `catch (error)` followed by `err.message` crashes with `err is not defined` and hides the real error.
 - **Always send a response in `catch`.** If you only `console.log`, Postman waits forever.
+- **`Cannot POST /signup` means no route matched** the method and path. Check for typos (`/singup`), the HTTP method, and that the router is mounted with `app.use`.
+- **`argument callback is required`** comes from calling the router itself, `authRouter("/logout", ...)`. Use a method: `authRouter.post("/logout", ...)`.
+- **`data and salt arguments required`** means `bcrypt.hash` got `undefined`; the body key didn't match what the route reads.
+- **Every route must send a response.** An empty handler like `(req, res) => {}` leaves Postman waiting.
 - **A `GET` request with a body** works in Postman, but query params (`/user?emailId=...`) are the usual way to send filters.
 
 ### Express 5 route syntax (from `homework.md`)
