@@ -66,11 +66,14 @@ const userSchema = new mongoose.Schema(
     skills: {
       type: [String],
     },
+    connectRequest:[""]
   },
+  
   {
     timestamps: true,
   },
 );
+
 
 userSchema.methods.getJWT = async function () {
   const user = this;
