@@ -49,7 +49,7 @@ authRouter.post("/login", async (req, res) => {
         httpOnly: true,
       });
 
-      res.send("User logged in successfully");
+      res.send(user);
     } else {
       res.status(400).send("Password is not valid");
     }
