@@ -2,9 +2,9 @@
 
 The frontend for **DevTinder**, a "Tinder for developers": users sign up, browse other developers, and send or review connection requests.
 
-Built with **React 19**, **Vite**, **React Router**, **Tailwind CSS v4** and **daisyUI v5**.
+Built with **React 19**, **Vite**, **React Router**, **Redux Toolkit**, **Axios**, **Tailwind CSS v4** and **daisyUI v5**.
 
-> 🚧 **Work in progress.** The app layout (Navbar + Footer) and routing are in place. The Login and Profile pages are placeholders, and the frontend does not call the backend API yet.
+> 🚧 **Work in progress.** Login is connected to the backend: a successful login stores the user in Redux, shows their photo and name in the Navbar, and redirects to the feed. Logout works from the avatar dropdown. The Feed and Profile pages are still placeholders.
 
 ## Repository layout
 
@@ -25,8 +25,10 @@ See [`../Devtinder/README.md`](../Devtinder/README.md) for the backend setup and
 | [React 19](https://react.dev/) | UI library |
 | [Vite](https://vite.dev/) | Dev server and build tool (`@vitejs/plugin-react`) |
 | [React Router 7](https://reactrouter.com/) (`react-router-dom`) | Client-side routing |
+| [Redux Toolkit](https://redux-toolkit.js.org/) + `react-redux` | Global state (the logged-in user) |
+| [Axios](https://axios-http.com/) | HTTP requests to the backend, sent with cookies (`withCredentials: true`) |
 | [Tailwind CSS v4](https://tailwindcss.com/) | Utility-first styling, via the `@tailwindcss/vite` plugin |
-| [daisyUI v5](https://daisyui.com/) | Tailwind component classes (`navbar`, `dropdown`, `footer`, `btn`, …) |
+| [daisyUI v5](https://daisyui.com/) | Tailwind component classes (`navbar`, `dropdown`, `card`, `btn`, …) |
 | ESLint 10 | Linting, with the React Hooks and React Refresh plugins |
 
 ## Getting started
@@ -34,6 +36,7 @@ See [`../Devtinder/README.md`](../Devtinder/README.md) for the backend setup and
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) (LTS recommended) and npm
+- The [backend](../Devtinder/README.md) running with a MongoDB connection
 
 ### Install and run
 
@@ -56,6 +59,14 @@ npm install
 npm run dev
 ```
 
+The backend allows requests from `http://localhost:5173` with credentials (CORS), which the cookie-based login needs. If the frontend runs on a different port, update the `origin` in `Devtinder/src/app.js`.
+
+The backend URL is set in `src/libs/utils/constants.js`:
+
+```js
+export const BASE_URL = "http://localhost:3000";
+```
+
 ## Available scripts
 
 | Command           | Description                                          |
@@ -73,17 +84,23 @@ devTinder-web/
 │   ├── favicon.svg
 │   └── icons.svg
 ├── src/
-│   ├── main.jsx       # Entry point: renders <App /> in StrictMode
-│   ├── App.jsx        # BrowserRouter and route definitions
-│   ├── Body.jsx       # Shared layout: <Navbar />, <Outlet />, <Footer />
-│   ├── Navbar.jsx     # Top bar with logo and avatar dropdown (Profile, Settings, Logout)
-│   ├── Footer.jsx     # Fixed footer with the current year
-│   ├── Login.jsx      # Login page (placeholder)
-│   ├── Profile.jsx    # Profile page (placeholder)
-│   └── index.css      # Tailwind import + daisyUI plugin
-├── index.html         # HTML shell with the #root element
-├── vite.config.js     # React + Tailwind Vite plugins
-├── eslint.config.js   # ESLint flat config
+│   ├── main.jsx              # Entry point: renders <App /> in StrictMode
+│   ├── App.jsx               # Redux <Provider>, BrowserRouter and routes
+│   ├── index.css             # Tailwind import + daisyUI plugin
+│   ├── components/
+│   │   ├── Body.jsx          # Shared layout: <Navbar />, <Outlet />, <Footer />
+│   │   ├── Navbar.jsx        # Logo, "Welcome, name", user photo and dropdown (Profile, Settings, Logout)
+│   │   ├── Footer.jsx        # Fixed footer with the current year
+│   │   ├── Login.jsx         # Login form: calls POST /login, saves the user, shows server errors
+│   │   ├── Feed.jsx          # Feed page (placeholder)
+│   │   └── Profile.jsx       # Profile page (placeholder)
+│   └── libs/utils/
+│       ├── appStore.js       # Redux store (configureStore)
+│       ├── userSlice.js      # `user` slice: addUser / removeUser
+│       └── constants.js      # BASE_URL of the backend
+├── index.html                # HTML shell with the #root element
+├── vite.config.js            # React + Tailwind Vite plugins
+├── eslint.config.js          # ESLint flat config
 └── package.json
 ```
 
@@ -91,21 +108,34 @@ devTinder-web/
 
 All pages render inside the `Body` layout through React Router's `<Outlet />`, so the Navbar and Footer appear on every page.
 
-| Path       | Component | Status                          |
-| ---------- | --------- | ------------------------------- |
-| `/`        | `Body`    | Layout only (Navbar + Footer)   |
-| `/login`   | `Login`   | Placeholder                     |
-| `/profile` | `Profile` | Placeholder                     |
+| Path       | Component | Status                                              |
+| ---------- | --------- | --------------------------------------------------- |
+| `/`        | `Feed`    | Placeholder                                         |
+| `/login`   | `Login`   | Working: logs in and redirects to `/`               |
+| `/profile` | `Profile` | Placeholder (linked from the Navbar dropdown)       |
 
-## Backend API (what the frontend will use)
+## State management
 
-From the [backend](../Devtinder/README.md). 🔒 = needs the `token` cookie set by `/login`.
+The Redux store has one slice, `user`:
+
+| Action         | Used in      | Effect                                      |
+| -------------- | ------------ | ------------------------------------------- |
+| `addUser`      | `Login.jsx`  | Saves the user returned by `POST /login`    |
+| `removeUser`   | `Navbar.jsx` | Clears the user on logout                   |
+
+The Navbar reads `store.user`: when it is set, it shows `Welcome, {firstName}` and the user's `photoUrl` with the dropdown menu.
+
+> ⚠️ The user is only kept in Redux memory, so a page refresh logs you out on the frontend (the `token` cookie is still set). Fetching `GET /profile/view` on app load would fix this — see the roadmap.
+
+## Backend API
+
+From the [backend](../Devtinder/README.md). 🔒 = needs the `token` cookie set by `/login`. ✅ = already used by the frontend.
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
 | POST | `/signup` | Create an account |
-| POST | `/login` | Log in, sets the `token` cookie |
-| POST | `/logout` | Clear the `token` cookie |
+| POST ✅ | `/login` | Log in, sets the `token` cookie, returns the user |
+| POST ✅ | `/logout` | Clear the `token` cookie |
 | GET 🔒 | `/profile/view` | Logged-in user's profile |
 | PATCH 🔒 | `/profile/edit` | Update profile fields |
 | PATCH 🔒 | `/profile/password` | Change password |
@@ -115,17 +145,30 @@ From the [backend](../Devtinder/README.md). 🔒 = needs the `token` cookie set 
 | GET 🔒 | `/user/connections` | Accepted connections |
 | GET 🔒 | `/feed` | Developers to browse |
 
-> Because the API uses cookie auth on a different port, the frontend will need to send requests with credentials (e.g. `axios` with `withCredentials: true`), and the backend will need CORS enabled for `http://localhost:5173` with `credentials: true`.
+## Troubleshooting
+
+| Problem | Cause / fix |
+| ------- | ----------- |
+| Blank page, console shows `require is not defined` | Use ES `import`, not `require()`, in files under `src/` |
+| Login returns **404** "Email is not valid" | No user with that email — sign up first |
+| Login returns **400** "Password is not valid" | Wrong password; the message is shown under the form |
+| CORS error in the console | Backend `cors()` must use the frontend's exact origin and `credentials: true` |
+| Photo disappears after refresh | Expected for now — see the state management note above |
 
 ## Roadmap
 
 - [x] Set up Vite + React
 - [x] Add Tailwind CSS and daisyUI
 - [x] Add React Router with a shared layout (Navbar, Footer)
-- [ ] Build the login form and connect it to `POST /login`
+- [x] Add Redux Toolkit store with a `user` slice
+- [x] Build the login form and connect it to `POST /login`
+- [x] Show the user's name and photo in the Navbar
+- [x] Wire up the Navbar dropdown (Profile link, Logout)
+- [ ] Keep the user logged in after refresh (`GET /profile/view` on load)
+- [ ] Redirect logged-out users to `/login`
 - [ ] Add signup
-- [ ] Wire up the Navbar dropdown links (Profile, Settings, Logout)
 - [ ] Show and edit the user's profile
 - [ ] Build the feed of developer cards
 - [ ] Connections and connection requests pages
-- [ ] Replace the placeholder avatar, footer text and page title
+- [ ] Use `BASE_URL` in the Navbar logout call
+- [ ] Replace the placeholder footer text and page title
