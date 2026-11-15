@@ -4,7 +4,7 @@ The frontend for **DevTinder**, a "Tinder for developers": users sign up, browse
 
 Built with **React 19**, **Vite**, **React Router**, **Redux Toolkit**, **Axios**, **Tailwind CSS v4** and **daisyUI v5**.
 
-> 🚧 **Work in progress.** Login is connected to the backend: a successful login stores the user in Redux, shows their photo and name in the Navbar, and redirects to the feed. Logout works from the avatar dropdown. The Feed and Profile pages are still placeholders.
+> 🚧 **Work in progress.** Login and logout are connected to the backend, the user stays logged in after a page refresh, and every page except `/login` is protected. The Feed and Profile pages are still placeholders.
 
 ## Repository layout
 
@@ -88,7 +88,7 @@ devTinder-web/
 │   ├── App.jsx               # Redux <Provider>, BrowserRouter and routes
 │   ├── index.css             # Tailwind import + daisyUI plugin
 │   ├── components/
-│   │   ├── Body.jsx          # Shared layout: <Navbar />, <Outlet />, <Footer />
+│   │   ├── Body.jsx          # Shared layout + auth check and route protection
 │   │   ├── Navbar.jsx        # Logo, "Welcome, name", user photo and dropdown (Profile, Settings, Logout)
 │   │   ├── Footer.jsx        # Fixed footer with the current year
 │   │   ├── Login.jsx         # Login form: calls POST /login, saves the user, shows server errors
@@ -108,24 +108,45 @@ devTinder-web/
 
 All pages render inside the `Body` layout through React Router's `<Outlet />`, so the Navbar and Footer appear on every page.
 
-| Path       | Component | Status                                              |
-| ---------- | --------- | --------------------------------------------------- |
-| `/`        | `Feed`    | Placeholder                                         |
-| `/login`   | `Login`   | Working: logs in and redirects to `/`               |
-| `/profile` | `Profile` | Placeholder (linked from the Navbar dropdown)       |
+| Path       | Component | Access    | Status                                         |
+| ---------- | --------- | --------- | ---------------------------------------------- |
+| `/`        | `Feed`    | 🔒 Login  | Placeholder                                    |
+| `/login`   | `Login`   | Public    | Working: logs in and redirects to `/`          |
+| `/profile` | `Profile` | 🔒 Login  | Placeholder (linked from the Navbar dropdown)  |
+
+## Authentication and protected routes
+
+Route protection lives in `src/components/Body.jsx`, which wraps every page:
+
+1. **On app load**, `Body` calls `GET /profile/view` with the `token` cookie. If it succeeds, the user is saved in Redux, so a page refresh keeps you logged in.
+2. **While that request is running**, a loading spinner is shown instead of the page, so a logged-in user never sees a flash of the login page.
+3. **Then it redirects** with `<Navigate replace />` (the Back button can't return to a blocked page):
+
+| You are…      | You open…                | Result               |
+| ------------- | ------------------------ | -------------------- |
+| Not logged in | any protected page       | Redirect to `/login` |
+| Not logged in | `/login`                 | Login form           |
+| Logged in     | `/login`                 | Redirect to `/`      |
+| Logged in     | any other page           | Page shows           |
+
+Public pages are listed at the top of `Body.jsx`. To add one (for example signup):
+
+```js
+const PUBLIC_ROUTES = ["/login", "/signup"];
+```
+
+Logging in (`Login.jsx`) saves the user and navigates to `/`; logging out (Navbar dropdown) calls `POST /logout`, clears the user and navigates to `/login`.
 
 ## State management
 
 The Redux store has one slice, `user`:
 
 | Action         | Used in      | Effect                                      |
-| -------------- | ------------ | ------------------------------------------- |
-| `addUser`      | `Login.jsx`  | Saves the user returned by `POST /login`    |
-| `removeUser`   | `Navbar.jsx` | Clears the user on logout                   |
+| -------------- | ----------------------- | ------------------------------------------- |
+| `addUser`      | `Login.jsx`, `Body.jsx` | Saves the user from `POST /login` or `GET /profile/view` |
+| `removeUser`   | `Navbar.jsx`            | Clears the user on logout                   |
 
 The Navbar reads `store.user`: when it is set, it shows `Welcome, {firstName}` and the user's `photoUrl` with the dropdown menu.
-
-> ⚠️ The user is only kept in Redux memory, so a page refresh logs you out on the frontend (the `token` cookie is still set). Fetching `GET /profile/view` on app load would fix this — see the roadmap.
 
 ## Backend API
 
@@ -136,7 +157,7 @@ From the [backend](../Devtinder/README.md). 🔒 = needs the `token` cookie set 
 | POST | `/signup` | Create an account |
 | POST ✅ | `/login` | Log in, sets the `token` cookie, returns the user |
 | POST ✅ | `/logout` | Clear the `token` cookie |
-| GET 🔒 | `/profile/view` | Logged-in user's profile |
+| GET 🔒 ✅ | `/profile/view` | Logged-in user's profile (used on app load) |
 | PATCH 🔒 | `/profile/edit` | Update profile fields |
 | PATCH 🔒 | `/profile/password` | Change password |
 | POST 🔒 | `/request/send/:status/:touserId` | Send a request (`interested` / `ignored`) |
@@ -153,7 +174,10 @@ From the [backend](../Devtinder/README.md). 🔒 = needs the `token` cookie set 
 | Login returns **404** "Email is not valid" | No user with that email — sign up first |
 | Login returns **400** "Password is not valid" | Wrong password; the message is shown under the form |
 | CORS error in the console | Backend `cors()` must use the frontend's exact origin and `credentials: true` |
-| Photo disappears after refresh | Expected for now — see the state management note above |
+| Blank page, `useEffect is not defined` | Import it: `import { useEffect } from "react"` |
+| "Invalid hook call" / rules-of-hooks error | Call hooks (`useDispatch`, `useNavigate`, …) at the top of the component, never inside another function |
+| Always redirected to `/login` | The `token` cookie is missing or expired — log in again; check that the backend is running on port 3000 |
+| Redirected to `/login` and login fails with a network error | The backend is not running — start it with `npm run dev` in `../Devtinder` |
 
 ## Roadmap
 
@@ -164,11 +188,11 @@ From the [backend](../Devtinder/README.md). 🔒 = needs the `token` cookie set 
 - [x] Build the login form and connect it to `POST /login`
 - [x] Show the user's name and photo in the Navbar
 - [x] Wire up the Navbar dropdown (Profile link, Logout)
-- [ ] Keep the user logged in after refresh (`GET /profile/view` on load)
-- [ ] Redirect logged-out users to `/login`
+- [x] Keep the user logged in after refresh (`GET /profile/view` on load)
+- [x] Protect routes: redirect logged-out users to `/login`
 - [ ] Add signup
 - [ ] Show and edit the user's profile
 - [ ] Build the feed of developer cards
 - [ ] Connections and connection requests pages
-- [ ] Use `BASE_URL` in the Navbar logout call
+- [x] Use `BASE_URL` in the Navbar logout call
 - [ ] Replace the placeholder footer text and page title
