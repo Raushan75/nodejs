@@ -59,7 +59,7 @@ const userSchema = new mongoose.Schema(
         }
       },
     },
-    abbout: {
+    about: {
       type: String,
       default: "This is a default description",
     },
