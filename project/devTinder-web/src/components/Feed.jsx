@@ -25,7 +25,9 @@ const Feed = () => {
     getFeed();
   }, []);
 
-  if (!feed || feed.length === 0) return null;
+  if (!feed) return null;
+
+  if(feed.length<=0) return <div className="flex justify-center my-10">No more users in the feed.</div>;
 
   return (
     <div className="flex justify-center my-10">
