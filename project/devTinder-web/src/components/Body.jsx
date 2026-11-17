@@ -7,8 +7,8 @@ import { useDispatch, useSelector } from "react-redux";
 import { addUser } from "../libs/utils/userSlice";
 import { useEffect, useState } from "react";
 
-// Pages anyone can open without logging in
-const PUBLIC_ROUTES = ["/login"];
+// Pages anyone can open without logging in (matched by path prefix)
+const PUBLIC_ROUTES = ["/login", "/forgot-password", "/reset-password/"];
 
 const Body = () => {
   const dispatch = useDispatch();
@@ -35,7 +35,9 @@ const Body = () => {
     fetchUser();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const isPublicRoute = PUBLIC_ROUTES.includes(location.pathname);
+  const isPublicRoute = PUBLIC_ROUTES.some((route) =>
+    location.pathname.startsWith(route),
+  );
 
   // 1. Still asking the backend who is logged in: show a loader, not the page
   if (checkingAuth) {
@@ -52,7 +54,8 @@ const Body = () => {
   }
 
   // 3. Already logged in and opening the login page: go to home
-  if (user && isPublicRoute) {
+  //    (forgot/reset password pages stay open, e.g. a reset link opened while logged in)
+  if (user && location.pathname === "/login") {
     return <Navigate to="/" replace />;
   }
 

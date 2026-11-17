@@ -77,6 +77,9 @@ const userSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    // forgot-password: SHA-256 hash of the emailed reset token, and when it stops working
+    passwordResetToken: String,
+    passwordResetExpires: Date,
   },
   {
     timestamps: true,
@@ -84,6 +87,8 @@ const userSchema = new mongoose.Schema(
       // never send the password hash (or internal fields) to the client
       transform: (doc, ret) => {
         delete ret.password;
+        delete ret.passwordResetToken;
+        delete ret.passwordResetExpires;
         delete ret.__v;
         return ret;
       },

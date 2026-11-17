@@ -2,7 +2,7 @@ import { useState } from "react";
 import axios from "axios";
 import { useDispatch } from "react-redux";
 import { addUser } from "../libs/utils/userSlice";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { BASE_URL, getErrorMessage } from "../libs/utils/constants";
 
 const Login = () => {
@@ -111,7 +111,14 @@ const Login = () => {
           </label>
 
           <label className="flex flex-col gap-1">
-            <span className="text-sm font-medium">Password</span>
+            <span className="flex justify-between items-center">
+              <span className="text-sm font-medium">Password</span>
+              {isLoginForm && (
+                <Link to="/forgot-password" className="link link-primary text-xs">
+                  Forgot password?
+                </Link>
+              )}
+            </span>
             <input
               type="password"
               value={password}

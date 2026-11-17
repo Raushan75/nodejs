@@ -1,20 +1,20 @@
 # 👨‍💻 DevTinder — Web
 
-The frontend for **DevTinder**, a "Tinder for developers": users log in, browse other developers one card at a time, mark them as **Interested** or **Ignore**, edit their own profile, see the developers they're connected with, and accept or reject the connection requests they've received.
+The frontend for **DevTinder**, a "Tinder for developers". Users sign up or log in, swipe through other developers one card at a time (**right = Interested**, **left = Ignore**), edit their profile, see who they're connected with, accept or reject the requests they've received, and reset a forgotten password by email.
 
-Built with **React 19**, **Vite**, **React Router**, **Redux Toolkit**, **Axios**, **Tailwind CSS v4** and **daisyUI v5**.
-
-> 🚧 **Work in progress.** Login, logout, the developer feed, profile editing, the connections list and reviewing received requests are connected to the backend. Signup is still to come.
+Built with **React 19**, **Vite**, **React Router 7**, **Redux Toolkit**, **Axios**, **Tailwind CSS v4** and **daisyUI v5**.
 
 ## Features
 
-- **Login and logout** with a cookie-based session (JWT in a `token` cookie)
-- **Stays logged in** after a page refresh, and every page except `/login` is protected
-- **Developer feed:** one card at a time with photo, name, age, gender, About and skills. **Interested** and **Ignore** send a connection request and move on to the next developer. Shows a loading spinner, an "all caught up" message when the feed is empty, and server errors under the card
-- **Edit profile:** a form next to a live preview card of the same size that updates as you type, a gender dropdown, an About box with a 250-character counter, a saving spinner, error alerts and a success toast
-- **Connections:** a grid of everyone you're connected with, each card showing photo, name, age, gender, About and skills, with default photo and About fallbacks
-- **Requests:** a grid of developers who sent you an **Interested** request, in the same card style as Connections, with **Accept** and **Reject** buttons that review the request and remove it from the list
-- **Navbar** with the user's name and photo, and a dropdown for Profile, Connections, Requests and Logout
+- **Signup and login** on one page, with a cookie-based session (JWT in an httpOnly `token` cookie). Pressing Enter submits, and a spinner shows while the request runs.
+- **Forgot password:** request a reset link by email, then choose a new password from that link (valid for 15 minutes, works once).
+- **Stays logged in** after a page refresh. Every page except login / forgot / reset password needs a login.
+- **Swipe feed:** one developer card at a time. Drag it (mouse or touch) **right for Interested** or **left to Ignore**. The card tilts, shows an INTERESTED / IGNORE stamp, and flies off. The ← / → keys and the buttons do the same.
+- **Edit profile:** a form next to a live preview card, a gender dropdown, an About box with a character counter, and a success toast.
+- **Connections:** a grid of everyone you're connected with.
+- **Requests:** developers who are interested in you, with **Accept** and **Reject**.
+- **Navbar:** Feed / Connections / Requests links with the current page highlighted, plus an avatar menu (Edit profile, Logout). On small screens the links move into the avatar menu.
+- **Friendly states everywhere:** loading spinners, empty-state messages, and server errors shown on screen with a **Try again** button.
 
 ## Repository layout
 
@@ -26,273 +26,234 @@ project/
 └── devTinder-web/    # Frontend — this app
 ```
 
-See [`../Devtinder/README.md`](../Devtinder/README.md) for the backend setup and full API reference.
+See [`../Devtinder/README.md`](../Devtinder/README.md) for the backend setup and the full API reference.
 
 ## Tech stack
 
 | Tool | Purpose |
 | ---- | ------- |
 | [React 19](https://react.dev/) | UI library |
-| [Vite](https://vite.dev/) | Dev server and build tool (`@vitejs/plugin-react`) |
+| [Vite](https://vite.dev/) | Dev server and build tool |
 | [React Router 7](https://reactrouter.com/) (`react-router-dom`) | Client-side routing |
-| [Redux Toolkit](https://redux-toolkit.js.org/) + `react-redux` | Global state: the logged-in user, the feed, connections and received requests |
+| [Redux Toolkit](https://redux-toolkit.js.org/) + `react-redux` | Global state: the logged-in user, feed, connections and requests |
 | [Axios](https://axios-http.com/) | HTTP requests to the backend, sent with cookies (`withCredentials: true`) |
-| [Tailwind CSS v4](https://tailwindcss.com/) | Utility-first styling, via the `@tailwindcss/vite` plugin |
-| [daisyUI v5](https://daisyui.com/) | Tailwind component classes (`card`, `btn`, `badge`, `alert`, `toast`, …) |
+| [Tailwind CSS v4](https://tailwindcss.com/) | Utility-first styling, via `@tailwindcss/vite` |
+| [daisyUI v5](https://daisyui.com/) | Component classes (`card`, `btn`, `badge`, `alert`, `toast`, …) |
 | ESLint 10 | Linting, with the React Hooks and React Refresh plugins |
 
 ## Getting started
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (LTS recommended) and npm
-- The [backend](../Devtinder/README.md) running with a MongoDB connection
+- [Node.js](https://nodejs.org/) (LTS) and npm
+- The [backend](../Devtinder/README.md) set up with its `.env` file
 
-### Install and run
+### Run both apps
+
+Use two terminals:
 
 ```bash
-git clone https://github.com/Raushan75/nodejs.git
-cd nodejs/project/devTinder-web
+# Terminal 1 — backend on http://localhost:3000
+cd project/Devtinder
+npm install
+npm run dev
+
+# Terminal 2 — frontend on http://localhost:5173
+cd project/devTinder-web
 npm install
 npm run dev
 ```
 
-Open the URL shown in the terminal (usually http://localhost:5173).
+Open http://localhost:5173.
 
-### Running with the backend
+## How the frontend connects to the backend
 
-The backend runs separately on **http://localhost:3000**:
+| Where | What | Must match |
+| ----- | ---- | ---------- |
+| `src/libs/utils/constants.js` | `BASE_URL = "http://localhost:3000"`, the backend address every request uses | The backend's `PORT` |
+| Every axios call | `{ withCredentials: true }` so the browser sends and receives the `token` cookie | — |
+| `Devtinder/src/app.js` | `cors({ origin: CLIENT_URL, credentials: true })` | The address the frontend runs on |
+| `Devtinder/.env` | `CLIENT_URL=http://localhost:5173` | Same as above (`localhost` ≠ `127.0.0.1`) |
 
-```bash
-cd ../Devtinder
-npm install
-npm run dev
-```
+To deploy, change `BASE_URL` to the deployed backend and `CLIENT_URL` to the deployed frontend.
 
-The backend allows requests from `http://localhost:5173` with credentials (CORS), which the cookie-based login needs. If the frontend runs on a different port, update the `origin` in `Devtinder/src/app.js`.
+### Which page calls which endpoint
 
-The backend URL is set in `src/libs/utils/constants.js`:
-
-```js
-export const BASE_URL = "http://localhost:3000";
-```
+| Component (`src/components/`) | Request | Backend file (`Devtinder/src/`) |
+| --- | --- | --- |
+| `Login.jsx` | `POST /login`, `POST /signup` | `routes/auth.js` |
+| `Navbar.jsx` | `POST /logout` | `routes/auth.js` |
+| `ForgotPassword.jsx` | `POST /forgot-password` | `routes/auth.js` |
+| `ResetPassword.jsx` | `POST /reset-password/:token` | `routes/auth.js` |
+| `Body.jsx` | `GET /profile/view` (who is logged in?) | `routes/profile.js` |
+| `EditProfile.jsx` | `PATCH /profile/edit` | `routes/profile.js` |
+| `Feed.jsx` | `GET /feed` | `routes/user.js` |
+| `UserCard.jsx` | `POST /request/send/:status/:userId` | `routes/request.js` |
+| `Requests.jsx` | `GET /user/request/received`, `POST /request/review/:status/:requestId` | `routes/user.js`, `routes/request.js` |
+| `Connections.jsx` | `GET /user/connections` | `routes/user.js` |
 
 ## Available scripts
 
-| Command           | Description                                          |
-| ----------------- | ---------------------------------------------------- |
-| `npm run dev`     | Start the Vite dev server with hot reload            |
-| `npm run build`   | Build for production into `dist/` (git-ignored)      |
-| `npm run preview` | Serve the production build locally                   |
-| `npm run lint`    | Run ESLint on the project (`dist/` is ignored)       |
+| Command           | Description                                     |
+| ----------------- | ----------------------------------------------- |
+| `npm run dev`     | Start the Vite dev server with hot reload       |
+| `npm run build`   | Build for production into `dist/` (git-ignored) |
+| `npm run preview` | Serve the production build locally              |
+| `npm run lint`    | Run ESLint                                      |
 
 ## Project structure
 
 ```
 devTinder-web/
-├── public/
-│   ├── favicon.svg
-│   └── icons.svg
 ├── src/
-│   ├── main.jsx              # Entry point: renders <App /> in StrictMode
-│   ├── App.jsx               # Redux <Provider>, BrowserRouter and routes
-│   ├── index.css             # Tailwind import + daisyUI plugin
+│   ├── main.jsx                # Entry point: renders <App /> in StrictMode
+│   ├── App.jsx                 # Redux <Provider>, BrowserRouter and routes
+│   ├── index.css               # Tailwind import + daisyUI plugin
 │   ├── components/
-│   │   ├── Body.jsx          # Shared layout + auth check and route protection
-│   │   ├── Navbar.jsx        # Logo, "Welcome, name", user photo and dropdown (Profile, Connections, Requests, Logout)
-│   │   ├── Footer.jsx        # Fixed footer with the current year
-│   │   ├── Login.jsx         # Login form: calls POST /login, saves the user, shows server errors
-│   │   ├── Feed.jsx          # Feed page: loads GET /feed, shows one UserCard, Interested / Ignore
-│   │   ├── UserCard.jsx      # Developer card used in the feed and as the profile preview
-│   │   ├── Profile.jsx       # Profile page: waits for the user, then renders EditProfile
-│   │   ├── EditProfile.jsx   # Edit form + live preview card, calls PATCH /profile/edit
-│   │   ├── Connections.jsx   # Connections page: loads GET /user/connections, shows a grid of cards
-│   │   └── Requests.jsx      # Requests page: loads GET /user/request/received, shows a grid of cards
+│   │   ├── Body.jsx            # Layout (Navbar, page, Footer) + login check and route protection
+│   │   ├── Navbar.jsx          # Logo, page links, avatar menu, logout
+│   │   ├── Footer.jsx          # Footer at the bottom of the page
+│   │   ├── Login.jsx           # Login / signup form (toggle), link to forgot password
+│   │   ├── ForgotPassword.jsx  # Enter email → reset link is emailed
+│   │   ├── ResetPassword.jsx   # Opened from the email link → choose a new password
+│   │   ├── Feed.jsx            # Loads GET /feed, shows one swipeable UserCard
+│   │   ├── UserCard.jsx        # Developer card: swipe, keyboard, buttons; also the profile preview
+│   │   ├── Profile.jsx         # Waits for the user, then renders EditProfile
+│   │   ├── EditProfile.jsx     # Edit form + live preview, PATCH /profile/edit
+│   │   ├── Connections.jsx     # Grid of your connections
+│   │   └── Requests.jsx        # Grid of received requests with Accept / Reject
 │   └── libs/utils/
-│       ├── appStore.js       # Redux store (configureStore) with `user`, `feed`, `connections` and `request`
-│       ├── userSlice.js      # `user` slice: addUser / removeUser
-│       ├── feedSlice.js      # `feed` slice: addFeed / removeUserFromFeed / removeFeed
-│       ├── connectionsSlice.js # `connections` slice: addConnections / removeConnections
-│       ├── requestSlice.js   # `request` slice: addRequest / removeRequest (one request by id)
-│       └── constants.js      # BASE_URL of the backend
-├── index.html                # HTML shell with the #root element
-├── vite.config.js            # React + Tailwind Vite plugins
-├── eslint.config.js          # ESLint flat config
+│       ├── appStore.js         # Redux store: user, feed, connections, request
+│       ├── userSlice.js        # addUser / removeUser
+│       ├── feedSlice.js        # addFeed / removeUserFromFeed / clearFeed
+│       ├── connectionsSlice.js # addConnections / removeConnections
+│       ├── requestSlice.js     # addRequest / removeRequest
+│       └── constants.js        # BASE_URL, FALLBACK_PHOTO, getErrorMessage, handleImageError
+├── index.html
+├── vite.config.js
+├── eslint.config.js
 └── package.json
 ```
 
 ## Routes
 
-All pages render inside the `Body` layout through React Router's `<Outlet />`, so the Navbar and Footer appear on every page.
+All pages render inside the `Body` layout, so the Navbar and Footer appear on every page.
 
-| Path       | Component | Access    | What it does                                             |
-| ---------- | --------- | --------- | -------------------------------------------------------- |
-| `/`        | `Feed`    | 🔒 Login  | Browse developers and send Interested / Ignore           |
-| `/login`   | `Login`   | Public    | Log in and redirect to `/`                               |
-| `/profile` | `Profile` | 🔒 Login  | Edit your profile with a live preview (Navbar dropdown)  |
-| `/connections` | `Connections` | 🔒 Login | See everyone you're connected with (Navbar dropdown) |
-| `/requests` | `Requests` | 🔒 Login | See connection requests sent to you (Navbar dropdown) |
+| Path | Component | Access | What it does |
+| ---- | --------- | ------ | ------------ |
+| `/` | `Feed` | 🔒 Login | Swipe through developers |
+| `/login` | `Login` | Logged out only | Log in or sign up |
+| `/forgot-password` | `ForgotPassword` | Public | Request a password reset email |
+| `/reset-password/:token` | `ResetPassword` | Public | Set a new password from the emailed link |
+| `/profile` | `Profile` | 🔒 Login | Edit your profile with a live preview |
+| `/connections` | `Connections` | 🔒 Login | See everyone you're connected with |
+| `/requests` | `Requests` | 🔒 Login | Accept or reject requests sent to you |
 
 ## Pages
 
+### Login / Sign up (`/login`)
+
+- One form that switches between **Login** and **Sign up** with the link at the bottom.
+- Sign up asks for first name (2+ characters), last name, email and a strong password (8+ characters with uppercase, lowercase, a number and a symbol). After signing up you land on `/profile` to fill in your details.
+- A wrong email or password shows **"Invalid email or password"** (the same message for both, on purpose).
+- **Forgot password?** next to the Password label opens `/forgot-password`.
+
+### Forgot / reset password
+
+1. `/forgot-password`: enter your email → `POST /forgot-password`. The reply is always "If an account exists for this email, a reset link has been sent", so nobody can find out which emails are registered.
+2. The email contains `http://localhost:5173/reset-password/<token>`. Until SMTP is set up in the backend `.env`, the email is **printed in the backend terminal** instead.
+3. `/reset-password/:token`: type the new password twice → `POST /reset-password/:token`. The link expires after 15 minutes and works only once.
+
 ### Feed (`/`)
 
-1. On first visit, `Feed` calls `GET /feed` and saves the list in the `feed` slice. Going to another page and back reuses it without a new request.
-2. The first developer in the list is shown with `UserCard`, along with a count of how many are left.
-3. **Interested** or **Ignore** calls `POST /request/send/interested/:userId` or `POST /request/send/ignored/:userId`. On success that developer is removed from the feed and the next one appears. Both buttons are disabled while the request runs.
-4. When nobody is left, an "You're all caught up" message is shown.
+1. On first visit `Feed` calls `GET /feed` and saves the list in the `feed` slice.
+2. The first developer is shown with `UserCard`. Each card gets `key={user._id}`, so the next card starts in the middle.
+3. Deciding on a card:
 
-The backend leaves out yourself and anyone you already have a request with, so people you've acted on don't come back after a refresh.
+   | Action | Interested | Ignore |
+   | ------ | ---------- | ------ |
+   | Swipe (mouse drag or touch) | Right, more than 100px | Left, more than 100px |
+   | Keyboard | → | ← |
+   | Button | ♥ Interested | ✕ Ignore |
+
+   A shorter drag snaps the card back and sends nothing. Otherwise the card flies off while `POST /request/send/<interested|ignored>/:userId` runs, and the developer is removed from the feed. If the request fails, the card comes back and the error shows on it.
+4. When the feed is empty, "You're all caught up" is shown with a **Refresh feed** button.
 
 ### Profile (`/profile`)
 
-- `Profile` shows a spinner until the logged-in user has loaded (after a page refresh), then renders `EditProfile` with the saved data.
-- The form and the preview card sit in two equal columns with the same height, and stack on small screens.
-- **Gender** is a dropdown, because the backend only accepts `male`, `female` or `other`. If none is picked, it isn't sent.
-- **Save Profile** calls `PATCH /profile/edit`, updates the user in Redux (so the Navbar name and photo change too) and shows a success toast. Backend errors appear in a red alert.
+- Shows a spinner until the user has loaded, then the form and a live preview card (the preview has no swipe or buttons).
+- **Gender** is a dropdown (`male` / `female` / `other`, or "Prefer not to say"). Age must be 18–100.
+- **Save Profile** calls `PATCH /profile/edit`, updates the user in Redux (so the Navbar changes too) and shows a toast.
 
-### Connections (`/connections`)
+### Connections (`/connections`) and Requests (`/requests`)
 
-1. On every visit, `Connections` calls `GET /user/connections` and saves the list in the `connections` slice. A spinner shows until it loads.
-2. If the list is empty, a "No connections found." message is shown.
-3. Otherwise the connections appear in a grid: one column on small screens and two on medium screens and up. Each card has the photo on the left and the details on the right:
-   - Name, then age and gender (e.g. "25, male"). If one is missing, the other shows on its own.
-   - About, cut off after three lines.
-   - Skills as badges, hidden when there are none.
-4. **Fallbacks:** a missing or empty `photoUrl` and a photo that fails to load (e.g. `https://example.com/me.png`) both show the default profile picture. An empty About shows "This is a default description".
-
-It doesn't use `UserCard`, because a connection doesn't need the Interested / Ignore buttons.
-
-### Requests (`/requests`)
-
-1. On every visit, `Requests` calls `GET /user/request/received` and saves the list in the `request` slice. A spinner shows until it loads, and "No requests found." shows when the list is empty.
-2. Each item is a **connection request**, not a user. The sender's profile is inside `fromUserId`:
-
-   ```js
-   { _id: "<request id>", fromUserId: { firstName, lastName, photoUrl, age, gender, about, skills }, status: "interested" }
-   ```
-
-   The card uses `request._id` as its key and reads the profile from `request.fromUserId`.
-3. Cards use the same layout and photo / About fallbacks as Connections, plus **Reject** and **Accept** buttons.
-4. **Accept** / **Reject** call `POST /request/review/accepted/:requestId` or `POST /request/review/rejected/:requestId` with `request._id` (the request's id, not the sender's user id). On success, `removeRequest(_id)` takes that card off the list. Accepted users then appear on the Connections page.
-
-### UserCard
-
-One card component is used in both places:
-
-| Prop | Meaning |
-| ---- | ------- |
-| `user` | `{ firstName, lastName, photoUrl, age, gender, about, skills }` |
-| `onIgnore`, `onInterested` | Button handlers. Without them the buttons are disabled (the profile preview) |
-| `disabled` | Disable both buttons, e.g. while a request is running |
-| `stretch` | Fill the parent's width and height (used on the Profile page) instead of the fixed feed size |
-| `label` | Small badge on the photo, e.g. `"Preview"` |
-
-A missing or broken photo falls back to a default profile picture.
+- Both load fresh data on every visit and show a spinner, an empty-state message, or an error with **Try again**.
+- A request item looks like `{ _id: "<request id>", fromUserId: { firstName, lastName, photoUrl, age, gender, about, skills }, status: "interested" }`. Accept / Reject send `request._id`, not the sender's id.
+- Accepting a request clears the cached connections, so the new connection shows up next time.
+- Missing or broken photos fall back to a default picture.
 
 ## Authentication and protected routes
 
-Route protection lives in `src/components/Body.jsx`, which wraps every page:
+`src/components/Body.jsx` wraps every page:
 
-1. **On app load**, `Body` calls `GET /profile/view` with the `token` cookie. If it succeeds, the user is saved in Redux, so a page refresh keeps you logged in.
-2. **While that request is running**, a loading spinner is shown instead of the page, so a logged-in user never sees a flash of the login page.
-3. **Then it redirects** with `<Navigate replace />` (the Back button can't return to a blocked page):
+1. On app load it calls `GET /profile/view` with the cookie. Success → the user is saved in Redux, so a refresh keeps you logged in.
+2. While that runs, a spinner is shown instead of the page.
+3. Then:
 
-| You are…      | You open…                | Result               |
-| ------------- | ------------------------ | -------------------- |
-| Not logged in | any protected page       | Redirect to `/login` |
-| Not logged in | `/login`                 | Login form           |
-| Logged in     | `/login`                 | Redirect to `/`      |
-| Logged in     | any other page           | Page shows           |
+| You are… | You open… | Result |
+| -------- | --------- | ------ |
+| Not logged in | a protected page | Redirect to `/login` |
+| Not logged in | `/login`, `/forgot-password`, `/reset-password/…` | Page shows |
+| Logged in | `/login` | Redirect to `/` |
+| Logged in | any other page (including reset password) | Page shows |
 
-Public pages are listed at the top of `Body.jsx`. To add one (for example signup):
+Public pages are listed in `PUBLIC_ROUTES` at the top of `Body.jsx` (matched by path prefix).
 
-```js
-const PUBLIC_ROUTES = ["/login", "/signup"];
-```
-
-Logging in (`Login.jsx`) saves the user and navigates to `/`. Logging out (Navbar dropdown) calls `POST /logout`, clears the user and the feed, and navigates to `/login`.
+**Logout** calls `POST /logout` and dispatches `removeUser()`. The `feed`, `connections` and `request` slices also reset on `removeUser`, so the next person to log in never sees the previous user's data.
 
 ## State management
 
-The Redux store has four slices:
+| Slice | Actions | Notes |
+| ----- | ------- | ----- |
+| `user` | `addUser`, `removeUser` | Set by login, signup, `GET /profile/view` and profile saves |
+| `feed` | `addFeed`, `removeUserFromFeed`, `clearFeed` | Reset on logout |
+| `connections` | `addConnections`, `removeConnections` | Reset on logout and after accepting a request |
+| `request` | `addRequest`, `removeRequest` | Reset on logout |
 
-| Slice | Action | Used in | Effect |
-| ----- | ------ | ------- | ------ |
-| `user` | `addUser` | `Login.jsx`, `Body.jsx`, `EditProfile.jsx` | Saves the user from login, `GET /profile/view` or a profile save |
-| `user` | `removeUser` | `Navbar.jsx` | Clears the user on logout |
-| `feed` | `addFeed` | `Feed.jsx` | Saves the list from `GET /feed` |
-| `feed` | `removeUserFromFeed` | `Feed.jsx` | Removes a developer after Interested / Ignore |
-| `feed` | `removeFeed` | `Navbar.jsx` | Clears the feed on logout, so the next user gets a fresh one |
-| `connections` | `addConnections` | `Connections.jsx` | Saves the list from `GET /user/connections` |
-| `connections` | `removeConnections` | — | Clears the list (not called yet; should be on logout) |
-| `request` | `addRequest` | `Requests.jsx` | Saves the list from `GET /user/request/received` |
-| `request` | `removeRequest` | `Requests.jsx` | Removes one request by `_id` after Accept / Reject |
+Shared helpers in `constants.js`:
 
-## Backend API
-
-From the [backend](../Devtinder/README.md). 🔒 = needs the `token` cookie set by `/login`. ✅ = already used by the frontend.
-
-| Method | Path | Description |
-| ------ | ---- | ----------- |
-| POST | `/signup` | Create an account |
-| POST ✅ | `/login` | Log in, sets the `token` cookie, returns the user |
-| POST ✅ | `/logout` | Clear the `token` cookie |
-| GET 🔒 ✅ | `/profile/view` | Logged-in user's profile (used on app load) |
-| PATCH 🔒 ✅ | `/profile/edit` | Update `firstName`, `lastName`, `photoUrl`, `age`, `gender`, `about`, `skills` |
-| PATCH 🔒 | `/profile/password` | Change password |
-| POST 🔒 ✅ | `/request/send/:status/:touserId` | Send a request (`interested` / `ignored`) |
-| POST 🔒 ✅ | `/request/review/:status/:requestId` | Review a request (`accepted` / `rejected`) — Accept / Reject on the Requests page |
-| GET 🔒 ✅ | `/user/request/received` | Pending requests sent to you, with the sender's profile in `fromUserId` (same fields as connections) |
-| GET 🔒 ✅ | `/user/connections` | Accepted connections: the other user's `firstName`, `lastName`, `photoUrl`, `about`, `age`, `gender`, `skills` |
-| GET 🔒 ✅ | `/feed` | Developers to browse (supports `?page=` and `?limit=`, max 50) |
+- `getErrorMessage(err)` turns any axios error into readable text, including "Cannot reach the server" when the backend is down.
+- `handleImageError` swaps a broken image for `FALLBACK_PHOTO`.
 
 ## Troubleshooting
 
 | Problem | Cause / fix |
 | ------- | ----------- |
-| Blank page, console shows `require is not defined` | Use ES `import`, not `require()`, in files under `src/` |
-| Blank page, `X is not defined` (`useEffect`, `axios`, `useSelector`, …) | Add the missing `import` at the top of the file |
-| "Something went wrong" with no server message | The request never reached the backend, often a missing import. Add `console.error(err)` in the `catch` to see the real error |
-| "Invalid hook call" / rules-of-hooks error | Call hooks (`useDispatch`, `useSelector`, `useNavigate`, …) at the top of the component, never inside another function |
-| Login returns **404** "Email is not valid" | No user with that email — sign up first |
-| Login returns **400** "Password is not valid" | Wrong password; the message is shown under the form |
-| Save fails with "Invalid gender" | Gender must be `male`, `female` or `other` (lowercase); use the dropdown |
-| Save fails with "Invalid url" | Photo URL must be a full web address, e.g. `https://…` |
-| About saves but doesn't stick | The backend `User` model must have an `about` field (Mongoose silently drops unknown fields). Restart the backend after model changes |
-| Feed or connection cards show no age, gender or About | The backend's `USER_saFE_DATA` list in `routes/user.js` must include those fields |
-| Connections page is blank, `useSelector is not defined` | Import it: `import { useDispatch, useSelector } from "react-redux"` |
-| "Objects are not valid as a React child" | You're rendering a whole object, e.g. `{connection}`. Render its fields instead (`{connection.firstName}`) |
-| Requests page stuck on the spinner | Check the imports: `axios`, `BASE_URL`, `useSelector` and the slice action (`addRequest`, not `addRequests`) |
-| Request cards show no name or photo | The user is in `request.fromUserId`, not on `request` itself. The backend must populate `fromUserId` with `USER_saFE_DATA`, not just `firstName` / `lastName` |
-| Accept / Reject returns **404** with no JSON message | The URL is wrong, e.g. `/request/reviewaccepted/…` (missing `/`). It must be `/request/review/<status>/<requestId>` |
-| Accept / Reject returns **404** "connection request not found" | The request was already reviewed, isn't addressed to you, or you passed the sender's user id instead of `request._id` |
-| Some connections missing or crash on `undefined` | The `.map()` in `GET /user/connections` must `return` the other user in both branches |
-| Default photo / About doesn't show for an existing user | Schema defaults only apply when a field is missing. An empty string or a fake URL is stored as-is, and a misspelled field (e.g. `abbout`) is ignored. Fix the data in MongoDB, e.g. `db.users.updateMany({ abbout: { $exists: true } }, { $rename: { abbout: "about" } })` |
-| "connection request already sent" | You already acted on that developer; refresh to get an up-to-date feed |
-| CORS error in the console | Backend `cors()` must use the frontend's exact origin and `credentials: true` |
-| Always redirected to `/login` | The `token` cookie is missing or expired — log in again; check that the backend is running on port 3000 |
-| Redirected to `/login` and login fails with a network error | The backend is not running — start it with `npm run dev` in `../Devtinder` |
+| "Cannot reach the server. Is the backend running on port 3000?" | Start the backend (`npm run dev` in `../Devtinder`), or fix `BASE_URL` |
+| CORS error in the browser console | `CLIENT_URL` in `Devtinder/.env` must exactly match the frontend address |
+| Logged out on every refresh / always sent to `/login` | A request is missing `withCredentials: true`, or the cookie expired (1 day) — log in again |
+| "Invalid email or password" | Wrong email or password. Use **Forgot password?** if needed |
+| "Password must be at least 8 characters…" | Signup and reset need uppercase, lowercase, a number and a symbol, e.g. `Elon@1234` |
+| No reset email arrives | SMTP isn't set up in `Devtinder/.env` — copy the link from the backend terminal instead. With Gmail, use an App Password |
+| "This reset link is invalid or has expired" | The link is older than 15 minutes or was already used — request a new one |
+| "Connection request already exists" | You already acted on that developer; use **Refresh feed** |
+| Save fails with "Invalid photo URL" | Use a full address starting with `https://` |
+| Blank page, `X is not defined` | A missing `import` at the top of the file |
+| "Objects are not valid as a React child" | You're rendering a whole object; render its fields instead |
 
 ## Roadmap
 
-- [x] Set up Vite + React
-- [x] Add Tailwind CSS and daisyUI
-- [x] Add React Router with a shared layout (Navbar, Footer)
-- [x] Add Redux Toolkit store with a `user` slice
-- [x] Build the login form and connect it to `POST /login`
-- [x] Show the user's name and photo in the Navbar
-- [x] Wire up the Navbar dropdown (Profile link, Logout)
-- [x] Keep the user logged in after refresh (`GET /profile/view` on load)
-- [x] Protect routes: redirect logged-out users to `/login`
-- [x] Use `BASE_URL` in the Navbar logout call
-- [x] Show and edit the user's profile, with a live preview
-- [x] Build the feed of developer cards with Interested / Ignore
-- [ ] Add signup
+- [x] Vite + React, Tailwind CSS, daisyUI
+- [x] React Router layout with Navbar and Footer
+- [x] Redux store (user, feed, connections, requests)
+- [x] Login, signup and logout
+- [x] Stay logged in after refresh, protected routes
+- [x] Edit profile with live preview
+- [x] Feed with swipe (mouse, touch, keyboard) and buttons
+- [x] Connections and Requests pages with Accept / Reject
+- [x] Clear all user data on logout
+- [x] Forgot / reset password by email
 - [ ] Edit skills on the profile page
-- [x] Connections page with a grid of cards
-- [x] Connection requests page (`/requests`)
-- [x] Wire up Accept / Reject on the Requests page
-- [ ] Clear connections and requests on logout (`removeConnections`, plus a new clear-all action for `request`)
+- [ ] Change password from the profile page (backend `PATCH /profile/forgot-password` exists)
 - [ ] Load the next page of the feed when it runs out (`?page=`)
-- [ ] Replace the placeholder footer text and page title
+- [ ] Chat between connections
