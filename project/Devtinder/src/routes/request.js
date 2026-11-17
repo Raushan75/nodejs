@@ -1,98 +1,88 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const { userAuth } = require("../middleware/auth");
 const ConnectionRequest = require("../models/connectionRequest");
 const User = require("../models/user");
 
 const requestsRouter = express.Router();
 
-// send connect api
-
+// send a request (interested) or skip a user (ignored)
 requestsRouter.post(
-  "/request/send/:status/:touserId",
+  "/request/send/:status/:toUserId",
   userAuth,
   async (req, res) => {
     try {
       const fromUserId = req.user._id;
+      const { status, toUserId } = req.params;
 
-      const toUserId = req.params.touserId;
-      const status = req.params.status;
-
-      const allowStatus = ["ignored", "interested"];
-
-      if (!allowStatus.includes(status)) {
-        return res
-          .status(400)
-          .json({ message: "status is not valid" + status });
+      if (!["ignored", "interested"].includes(status)) {
+        return res.status(400).send("Invalid status: " + status);
+      }
+      if (!mongoose.isValidObjectId(toUserId)) {
+        return res.status(400).send("Invalid user id");
+      }
+      if (fromUserId.equals(toUserId)) {
+        return res.status(400).send("You cannot send a request to yourself");
       }
 
       const toUser = await User.findById(toUserId);
       if (!toUser) {
-        return res.status(404).json({ message: "user not found" });
+        return res.status(404).send("User not found");
       }
-      // if  there is an existing  connectionRequest
+
       const existingConnectionRequest = await ConnectionRequest.findOne({
         $or: [
           { fromUserId, toUserId },
           { fromUserId: toUserId, toUserId: fromUserId },
         ],
       });
-
       if (existingConnectionRequest) {
-        return res
-          .status(400)
-          .json({ message: "connection request already sent" });
+        return res.status(400).send("Connection request already exists");
       }
 
-      const connectionRequest = new ConnectionRequest({
+      const data = await new ConnectionRequest({
         fromUserId,
         toUserId,
         status,
-      });
+      }).save();
 
-      const data = await connectionRequest.save();
-
-      res.json({
-        message: "connection request sent successfully",
-        data,
-      });
+      res.json({ message: "Connection request sent successfully", data });
     } catch (error) {
-      res.status(400).send("ERROR:" + error.message);
+      res.status(400).send(error.message);
     }
   },
 );
 
+// accept or reject a request that was sent to the logged-in user
 requestsRouter.post(
   "/request/review/:status/:requestId",
   userAuth,
   async (req, res) => {
     try {
-      const loggedInUser = req.user;
       const { status, requestId } = req.params;
-      const allowedStatus = ["accepted", "rejected"];
 
-      if (!allowedStatus.includes(status)) {
-        return res.status(400).json({ message: "status is not valid" });
+      if (!["accepted", "rejected"].includes(status)) {
+        return res.status(400).send("Invalid status: " + status);
+      }
+      if (!mongoose.isValidObjectId(requestId)) {
+        return res.status(400).send("Invalid request id");
       }
 
       const connectionRequest = await ConnectionRequest.findOne({
         _id: requestId,
-        toUserId: loggedInUser._id,
+        toUserId: req.user._id,
         status: "interested",
       });
       if (!connectionRequest) {
-        return res
-          .status(404)
-          .json({ message: "connection request not found" });
+        return res.status(404).send("Connection request not found");
       }
 
       connectionRequest.status = status;
-     const data = await connectionRequest.save();
-      res.json({
-        message: "connection request updated successfully",
-        data: connectionRequest,
-      });
+      const data = await connectionRequest.save();
+
+      res.json({ message: "Connection request " + status, data });
     } catch (error) {
-      res.status(400).send("ERROR:" + error.message);
+      res.status(400).send(error.message);
     }
   },
 );

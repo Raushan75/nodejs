@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { BASE_URL } from "../libs/utils/constants";
+import { BASE_URL, getErrorMessage } from "../libs/utils/constants";
 import UserCard from "./UserCard";
 import { useDispatch } from "react-redux";
 import { addUser } from "../libs/utils/userSlice";
@@ -38,8 +38,8 @@ const EditProfile = ({ user }) => {
           firstName,
           lastName,
           photoUrl,
-          age,
-          ...(gender && { gender }),
+          age: age === "" ? "" : Number(age),
+          gender,
           about,
         },
         { withCredentials: true },
@@ -47,7 +47,7 @@ const EditProfile = ({ user }) => {
       dispatch(addUser(res.data?.data));
       setShowToast(true);
     } catch (err) {
-      setError(err?.response?.data || "Something went wrong");
+      setError(getErrorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -66,10 +66,9 @@ const EditProfile = ({ user }) => {
 
         {/* Two equal columns; items-stretch makes both cards the same height */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-stretch max-w-4xl mx-auto">
-          {/* Form */}
           <form
             onSubmit={handleSaveProfile}
-            className="card bg-base-200 shadow-md w-full"
+            className="card bg-base-100 shadow-md w-full"
           >
             <div className="card-body gap-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -81,6 +80,8 @@ const EditProfile = ({ user }) => {
                     onChange={(e) => setFirstName(e.target.value)}
                     className="input w-full"
                     placeholder="First name"
+                    minLength={2}
+                    maxLength={50}
                     required
                   />
                 </label>
@@ -92,6 +93,7 @@ const EditProfile = ({ user }) => {
                     onChange={(e) => setLastName(e.target.value)}
                     className="input w-full"
                     placeholder="Last name"
+                    maxLength={50}
                   />
                 </label>
               </div>
@@ -113,6 +115,7 @@ const EditProfile = ({ user }) => {
                   <input
                     type="number"
                     min={18}
+                    max={100}
                     value={age}
                     onChange={(e) => setAge(e.target.value)}
                     className="input w-full"
@@ -126,9 +129,7 @@ const EditProfile = ({ user }) => {
                     onChange={(e) => setGender(e.target.value)}
                     className="select w-full"
                   >
-                    <option value="" disabled>
-                      Select
-                    </option>
+                    <option value="">Prefer not to say</option>
                     <option value="male">Male</option>
                     <option value="female">Female</option>
                     <option value="other">Other</option>
@@ -167,11 +168,12 @@ const EditProfile = ({ user }) => {
             </div>
           </form>
 
-          {/* Live preview */}
+          {/* Live preview: no Ignore/Interested buttons here */}
           <UserCard
-            user={{ firstName, lastName, photoUrl, age, gender, about }}
+            user={{ firstName, lastName, photoUrl, age, gender, about, skills: user.skills }}
             stretch
             label="Preview"
+            showActions={false}
           />
         </div>
       </div>

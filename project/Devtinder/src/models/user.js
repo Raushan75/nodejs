@@ -12,12 +12,14 @@ const userSchema = new mongoose.Schema(
     firstName: {
       type: String,
       required: true,
-      minLength: 5,
+      minLength: 2,
       maxLength: 50,
       trim: true,
     },
     lastName: {
       type: String,
+      trim: true,
+      maxLength: 50,
     },
     emailId: {
       type: String,
@@ -27,34 +29,31 @@ const userSchema = new mongoose.Schema(
       trim: true,
       validate(value) {
         if (!validator.isEmail(value)) {
-          throw new Error("Invalid email" + value);
+          throw new Error("Invalid email: " + value);
         }
       },
     },
+    // Stores the bcrypt hash. Password strength is checked on the plain
+    // password before hashing (see utils/validation.js).
     password: {
       type: String,
       required: true,
-      validate(value) {
-        if (!validator.isStrongPassword(value)) {
-          throw new Error("Invalid password" + value);
-        }
-      },
     },
     age: {
       type: Number,
-      min: 18,
+      min: [18, "You must be at least 18"],
+      max: [100, "Please enter a valid age"],
     },
     gender: {
       type: String,
       lowercase: true,
       trim: true,
       validate(value) {
-        if (["male", "female", "other"].includes(value) === false) {
+        if (!["male", "female", "other"].includes(value)) {
           throw new Error("Invalid gender");
         }
       },
     },
-
     photoUrl: {
       type: String,
       trim: true,
@@ -63,7 +62,7 @@ const userSchema = new mongoose.Schema(
       set: (value) => (value && value.trim() ? value : DEFAULT_PHOTO_URL),
       validate(value) {
         if (!validator.isURL(value)) {
-          throw new Error("Invalid url" + value);
+          throw new Error("Invalid photo URL: " + value);
         }
       },
     },
@@ -78,32 +77,28 @@ const userSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
-    connectRequest:[""]
   },
-  
   {
     timestamps: true,
+    toJSON: {
+      // never send the password hash (or internal fields) to the client
+      transform: (doc, ret) => {
+        delete ret.password;
+        delete ret.__v;
+        return ret;
+      },
+    },
   },
 );
 
-
-userSchema.methods.getJWT = async function () {
-  const user = this;
-  const token = await jwt.sign({ _id: user._id }, "Raushan@1243$4542", {
+userSchema.methods.getJWT = function () {
+  return jwt.sign({ _id: this._id }, process.env.JWT_SECRET, {
     expiresIn: "1d",
   });
-
-  return token;
 };
 
-userSchema.methods.validatePassword = async function (passwordInputByUser) {
-  const user = this;
-  const passwordHash = user.password;
-  const isPasswordValid = await bcrypt.compare(
-    passwordInputByUser,
-    passwordHash,
-  );
-  return isPasswordValid;
+userSchema.methods.validatePassword = function (passwordInputByUser) {
+  return bcrypt.compare(passwordInputByUser, this.password);
 };
 
 module.exports = mongoose.model("User", userSchema);

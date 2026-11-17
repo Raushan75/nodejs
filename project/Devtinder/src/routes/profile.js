@@ -1,57 +1,57 @@
 const express = require("express");
-const { userAuth } = require("../middleware/auth");
-const { validateEditProfileData } = require("../utils/validation");
 const bcrypt = require("bcrypt");
-const validator = require("validator");
+const { userAuth } = require("../middleware/auth");
+const {
+  validateEditProfileData,
+  validatePassword,
+} = require("../utils/validation");
 
 const profileRouter = express.Router();
-// profile
-profileRouter.get("/profile/view", userAuth, async (req, res) => {
-  try {
-    const user = req.user;
 
-    if (!user) {
-      return res.status(404).send("user not found");
-    }
-
-    res.send(user);
-  } catch (error) {
-    res.status(400).send("ERROR:" + error.message);
-  }
+profileRouter.get("/profile/view", userAuth, (req, res) => {
+  res.send(req.user);
 });
 
-// update data of the user
 profileRouter.patch("/profile/edit", userAuth, async (req, res) => {
   try {
     if (!validateEditProfileData(req)) {
-      throw new Error("data is not valid");
+      throw new Error("Some of these fields cannot be edited");
     }
 
-    const loginuser = req.user;
-    Object.keys(req.body).forEach((key) => (loginuser[key] = req.body[key]));
-    await loginuser.save();
+    const loggedInUser = req.user;
+    Object.keys(req.body).forEach((key) => {
+      const value = req.body[key];
+      // an empty age or gender means "not set"
+      loggedInUser[key] =
+        (key === "age" || key === "gender") && value === "" ? undefined : value;
+    });
+    await loggedInUser.save();
+
     res.send({
-      message: `${loginuser.firstName} your profile updated successfully`,
-      data: loginuser,
+      message: `${loggedInUser.firstName}, your profile was updated successfully`,
+      data: loggedInUser,
     });
   } catch (err) {
-    res.status(400).send("Error updating the user: " + err.message);
+    res.status(400).send(err.message);
   }
 });
 
+// change the password of the logged-in user
 profileRouter.patch("/profile/forgot-password", userAuth, async (req, res) => {
-  // forgot password
   try {
+    const { password } = req.body;
+    validatePassword(password);
+
     const user = req.user;
-    const newPassword = req.body.password;
-    const passwordHash = await bcrypt.hash(newPassword, 10);
-    user.password = passwordHash;
+    user.password = await bcrypt.hash(password, 10);
     await user.save();
+
     res.send({
-      message: `${user.firstName} your password updated successfully`,
+      message: `${user.firstName}, your password was updated successfully`,
     });
   } catch (err) {
-    res.status(400).send("Error updating the password: " + err.message);
+    res.status(400).send(err.message);
   }
 });
+
 module.exports = profileRouter;

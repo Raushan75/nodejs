@@ -11,7 +11,6 @@ import { useEffect, useState } from "react";
 const PUBLIC_ROUTES = ["/login"];
 
 const Body = () => {
-  // Hooks must be called at the top level of the component, never inside another function
   const dispatch = useDispatch();
   const location = useLocation();
   const user = useSelector((store) => store.user);
@@ -26,9 +25,8 @@ const Body = () => {
           withCredentials: true,
         });
         dispatch(addUser(res.data));
-      } catch (err) {
-        // 401 / 400 = no valid token cookie, so the user is not logged in
-        console.error("Not logged in:", err?.response?.data || err.message);
+      } catch {
+        // no valid token cookie: the user is not logged in
       } finally {
         setCheckingAuth(false);
       }
@@ -42,7 +40,7 @@ const Body = () => {
   // 1. Still asking the backend who is logged in: show a loader, not the page
   if (checkingAuth) {
     return (
-      <div className="flex justify-center items-center h-screen">
+      <div className="flex justify-center items-center min-h-screen">
         <span className="loading loading-spinner loading-lg"></span>
       </div>
     );
@@ -58,12 +56,15 @@ const Body = () => {
     return <Navigate to="/" replace />;
   }
 
+  // Footer sits at the bottom of the page instead of floating over the content
   return (
-    <>
+    <div className="flex flex-col min-h-screen bg-base-200">
       <Navbar />
-      <Outlet />
+      <main className="flex-1 w-full">
+        <Outlet />
+      </main>
       <Footer />
-    </>
+    </div>
   );
 };
 

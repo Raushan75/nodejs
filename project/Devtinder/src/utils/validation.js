@@ -1,17 +1,27 @@
 const validator = require("validator");
-const validateSingupData = (req) => {
-  const { firstName, lastName, emailId, password } = req.body;
-  if (!firstName || !lastName) {
-    throw new Error("Name is not valid");
-  } else if (!validator.isEmail(emailId)) {
-    throw new Error("Email is not valid");
-  } else if (!validator.isStrongPassword(password)) {
-    throw new Error("Password is not strong");
+
+const PASSWORD_RULES =
+  "Password must be at least 8 characters with an uppercase letter, a lowercase letter, a number and a symbol";
+
+const validatePassword = (password) => {
+  if (!password || !validator.isStrongPassword(password)) {
+    throw new Error(PASSWORD_RULES);
   }
 };
 
+const validateSingupData = (req) => {
+  const { firstName, emailId, password } = req.body;
+  if (!firstName || firstName.trim().length < 2) {
+    throw new Error("First name must be at least 2 characters");
+  }
+  if (!emailId || !validator.isEmail(emailId)) {
+    throw new Error("Email is not valid");
+  }
+  validatePassword(password);
+};
+
 const validateEditProfileData = (req) => {
-  const allwedEditFields = [
+  const allowedEditFields = [
     "firstName",
     "lastName",
     "photoUrl",
@@ -21,11 +31,9 @@ const validateEditProfileData = (req) => {
     "age",
   ];
 
-  const isEditAllowed = Object.keys(req.body).every((field) =>
-    allwedEditFields.includes(field),
+  return Object.keys(req.body).every((field) =>
+    allowedEditFields.includes(field),
   );
-
-  return isEditAllowed;
 };
 
-module.exports = { validateSingupData, validateEditProfileData };
+module.exports = { validateSingupData, validateEditProfileData, validatePassword };

@@ -11,7 +11,9 @@ function App() {
   return (
     <>
       <Provider store={appStore}>
-        <BrowserRouter basename="/">
+        {/* useTransitions={false}: apply navigation in the same render as Redux updates,
+            otherwise Body sees "logged in + still on /login" and redirects to "/" */}
+        <BrowserRouter basename="/" useTransitions={false}>
           <Routes>
             <Route path="/" element={<Body />}>
               <Route path="/" element={<Feed />} />

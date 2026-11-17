@@ -1,15 +1,11 @@
-
 const Footer = () => {
   return (
-    <footer className="footer sm:footer-horizontal footer-center bg-base-300 text-base-content p-4 fixed bottom-0">
+    <footer className="footer footer-center bg-base-300 text-base-content/70 p-4 text-sm">
       <aside>
-        <p>
-          Copyright © {new Date().getFullYear()} - All right reserved by ACME
-          Industries Ltd
-        </p>
+        <p>© {new Date().getFullYear()} DevTinder · Find developers to build with</p>
       </aside>
     </footer>
   );
-}
+};
 
-export default Footer
+export default Footer;

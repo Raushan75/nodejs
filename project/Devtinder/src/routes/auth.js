@@ -5,64 +5,67 @@ const User = require("../models/user");
 
 const authRouter = express.Router();
 
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: "lax",
+  maxAge: 24 * 60 * 60 * 1000, // 1 day, same as the JWT
+};
+
 authRouter.post("/signup", async (req, res) => {
   try {
-    // validation of data
     validateSingupData(req);
 
     const { firstName, lastName, emailId, password } = req.body;
 
-    // Encrypt the password
+    const existing = await User.findOne({
+      emailId: emailId.toLowerCase().trim(),
+    });
+    if (existing) {
+      return res.status(400).send("An account with this email already exists");
+    }
+
     const passwordHash = await bcrypt.hash(password, 10);
 
-    //creating a new instance of the user model
     const user = new User({
       firstName,
       lastName,
       emailId,
       password: passwordHash,
     });
-    await user.save();
-    res.send("User added successfully");
+    const savedUser = await user.save();
+
+    res.cookie("token", savedUser.getJWT(), COOKIE_OPTIONS);
+    res.json({ message: "User created successfully", data: savedUser });
   } catch (err) {
-    res.status(400).send("Error: " + err.message);
+    res.status(400).send(err.message);
   }
 });
 
-// login api
 authRouter.post("/login", async (req, res) => {
   try {
     const { emailId, password } = req.body;
-    const user = await User.findOne({ emailId: emailId });
-
-    if (!user) {
-      return res.status(404).send("Email is not valid");
+    if (!emailId || !password) {
+      return res.status(400).send("Email and password are required");
     }
 
-    const isPasswordValid = await user.validatePassword(password);
+    const user = await User.findOne({ emailId: emailId.toLowerCase().trim() });
 
-    if (isPasswordValid) {
-      const token = await user.getJWT();
-
-      res.cookie("token", token, {
-        expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000),
-        httpOnly: true,
-      });
-
-      res.send(user);
-    } else {
-      res.status(400).send("Password is not valid");
+    // Same message for a wrong email and a wrong password,
+    // so nobody can find out which emails are registered.
+    if (!user || !(await user.validatePassword(password))) {
+      return res.status(401).send("Invalid email or password");
     }
+
+    res.cookie("token", user.getJWT(), COOKIE_OPTIONS);
+    res.send(user);
   } catch (err) {
     console.error("Error logging in:", err.message);
-    res.status(400).send("Error: " + err.message);
+    res.status(400).send(err.message);
   }
 });
 
-authRouter.post("/logout", async (req, res) => {
-  res.cookie("token", null, {
-    expires: new Date(Date.now()),
-  });
+authRouter.post("/logout", (req, res) => {
+  res.clearCookie("token", { httpOnly: true, sameSite: "lax" });
   res.send("User logged out successfully");
 });
 

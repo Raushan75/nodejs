@@ -1,11 +1,10 @@
 const mongoose = require("mongoose");
 
 const connectionDB = async () => {
-  await mongoose.connect(
-    "mongodb+srv://graushan7585_db_user:A17zuiCVWHIgwtGG@learn-node.hl5eywo.mongodb.net/devTinder",
-  );
+  if (!process.env.MONGODB_URI) {
+    throw new Error("MONGODB_URI is missing in the .env file");
+  }
+  await mongoose.connect(process.env.MONGODB_URI);
 };
 
 module.exports = connectionDB;
-
-
