@@ -48,7 +48,7 @@ const Connections = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {connections.map((connection) => {
-          const { _id, photoUrl, firstName, lastName, age, gender, about, skills } =
+          const { _id, photoUrl, firstName, lastName, age, gender, about } =
             connection;
           return (
             <div
@@ -81,16 +81,6 @@ const Connections = () => {
                 <p className="text-sm opacity-80 line-clamp-3">
                   {about || "This is a default description"}
                 </p>
-
-                {skills?.length > 0 && (
-                  <div className="flex flex-wrap justify-center gap-2 mt-2">
-                    {skills.map((skill, index) => (
-                      <span key={index} className="badge badge-primary badge-outline">
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
           );
