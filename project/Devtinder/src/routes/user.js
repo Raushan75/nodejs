@@ -9,6 +9,9 @@ const USER_saFE_DATA = [
   "emailId",
   "role",
   "photoUrl",
+  "about",
+  "age",
+  "gender",
   "skills",
 ];
 
@@ -46,7 +49,7 @@ userRouter.get("/user/connections", userAuth, async (req, res) => {
       if (row.fromUserId._id.toString() === loggedInUser._id.toString()) {
         return row.toUserId;
       }
-      row.fromUserId;
+      return row.fromUserId;
     });
 
     res.json({
@@ -54,7 +57,7 @@ userRouter.get("/user/connections", userAuth, async (req, res) => {
       data,
     });
   } catch (error) {
-    res.status(400).send("ERROR: " + err.message);
+    res.status(400).send("ERROR: " + error.message);
   }
 });
 

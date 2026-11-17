@@ -3,6 +3,10 @@ const validator = require("validator");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
+const DEFAULT_PHOTO_URL =
+  "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png";
+const DEFAULT_ABOUT = "This is a default description";
+
 const userSchema = new mongoose.Schema(
   {
     firstName: {
@@ -42,6 +46,8 @@ const userSchema = new mongoose.Schema(
     },
     gender: {
       type: String,
+      lowercase: true,
+      trim: true,
       validate(value) {
         if (["male", "female", "other"].includes(value) === false) {
           throw new Error("Invalid gender");
@@ -51,8 +57,10 @@ const userSchema = new mongoose.Schema(
 
     photoUrl: {
       type: String,
-      default:
-        "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png",
+      trim: true,
+      default: DEFAULT_PHOTO_URL,
+      // an empty string would skip the default, so turn it into the default
+      set: (value) => (value && value.trim() ? value : DEFAULT_PHOTO_URL),
       validate(value) {
         if (!validator.isURL(value)) {
           throw new Error("Invalid url" + value);
@@ -61,10 +69,14 @@ const userSchema = new mongoose.Schema(
     },
     about: {
       type: String,
-      default: "This is a default description",
+      trim: true,
+      maxLength: 500,
+      default: DEFAULT_ABOUT,
+      set: (value) => (value && value.trim() ? value : DEFAULT_ABOUT),
     },
     skills: {
       type: [String],
+      default: [],
     },
     connectRequest:[""]
   },
