@@ -1,8 +1,8 @@
 import axios from "axios";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { BASE_URL } from "../libs/utils/constants";
-import { addRequest } from "../libs/utils/requestSlice";
+import { addRequest, removeRequest } from "../libs/utils/requestSlice";
 
 const FALLBACK_PHOTO =
   "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png";
@@ -19,6 +19,20 @@ function Requests() {
       dispatch(addRequest(res.data.data));
     } catch (error) {
       console.error("Error fetching requests:", error);
+    }
+  };
+
+  const reviewRequest = async (status, _id) => {
+    try {
+      await axios.post(
+        BASE_URL + "/request/review/" + status + "/" + _id,
+        {},
+        { withCredentials: true },
+      );
+      // remove the reviewed request from the list
+      dispatch(removeRequest(_id));
+    } catch (error) {
+      console.error(`Error ${status} request:`, error);
     }
   };
 
@@ -82,8 +96,18 @@ function Requests() {
                   {about || "This is a default description"}
                 </p>
                 <div className="flex gap-4 justify-center mt-4">
-                  <button className="btn btn-primary">Reject</button>
-                  <button className="btn btn-secondary">Accept</button>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => reviewRequest("rejected", request._id)}
+                  >
+                    Reject
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => reviewRequest("accepted", request._id)}
+                  >
+                    Accept
+                  </button>
                 </div>
               </div>
             </div>

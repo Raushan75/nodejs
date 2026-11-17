@@ -1,10 +1,10 @@
 # 👨‍💻 DevTinder — Web
 
-The frontend for **DevTinder**, a "Tinder for developers": users log in, browse other developers one card at a time, mark them as **Interested** or **Ignore**, edit their own profile, see the developers they're connected with, and view the connection requests they've received.
+The frontend for **DevTinder**, a "Tinder for developers": users log in, browse other developers one card at a time, mark them as **Interested** or **Ignore**, edit their own profile, see the developers they're connected with, and accept or reject the connection requests they've received.
 
 Built with **React 19**, **Vite**, **React Router**, **Redux Toolkit**, **Axios**, **Tailwind CSS v4** and **daisyUI v5**.
 
-> 🚧 **Work in progress.** Login, logout, the developer feed, profile editing, the connections list and the received-requests list are connected to the backend. Signup and accepting / rejecting requests are still to come.
+> 🚧 **Work in progress.** Login, logout, the developer feed, profile editing, the connections list and reviewing received requests are connected to the backend. Signup is still to come.
 
 ## Features
 
@@ -13,7 +13,7 @@ Built with **React 19**, **Vite**, **React Router**, **Redux Toolkit**, **Axios*
 - **Developer feed:** one card at a time with photo, name, age, gender, About and skills. **Interested** and **Ignore** send a connection request and move on to the next developer. Shows a loading spinner, an "all caught up" message when the feed is empty, and server errors under the card
 - **Edit profile:** a form next to a live preview card of the same size that updates as you type, a gender dropdown, an About box with a 250-character counter, a saving spinner, error alerts and a success toast
 - **Connections:** a grid of everyone you're connected with, each card showing photo, name, age, gender, About and skills, with default photo and About fallbacks
-- **Requests:** a grid of developers who sent you an **Interested** request, in the same card style as Connections, with **Accept** and **Reject** buttons (not wired up yet)
+- **Requests:** a grid of developers who sent you an **Interested** request, in the same card style as Connections, with **Accept** and **Reject** buttons that review the request and remove it from the list
 - **Navbar** with the user's name and photo, and a dropdown for Profile, Connections, Requests and Logout
 
 ## Repository layout
@@ -113,7 +113,7 @@ devTinder-web/
 │       ├── userSlice.js      # `user` slice: addUser / removeUser
 │       ├── feedSlice.js      # `feed` slice: addFeed / removeUserFromFeed / removeFeed
 │       ├── connectionsSlice.js # `connections` slice: addConnections / removeConnections
-│       ├── requestSlice.js   # `request` slice: addRequest / removeRequest
+│       ├── requestSlice.js   # `request` slice: addRequest / removeRequest (one request by id)
 │       └── constants.js      # BASE_URL of the backend
 ├── index.html                # HTML shell with the #root element
 ├── vite.config.js            # React + Tailwind Vite plugins
@@ -174,8 +174,7 @@ It doesn't use `UserCard`, because a connection doesn't need the Interested / Ig
 
    The card uses `request._id` as its key and reads the profile from `request.fromUserId`.
 3. Cards use the same layout and photo / About fallbacks as Connections, plus **Reject** and **Accept** buttons.
-
-> The buttons don't do anything yet. They will call `POST /request/review/rejected/:requestId` or `POST /request/review/accepted/:requestId` with `request._id`, then remove the request from the list.
+4. **Accept** / **Reject** call `POST /request/review/accepted/:requestId` or `POST /request/review/rejected/:requestId` with `request._id` (the request's id, not the sender's user id). On success, `removeRequest(_id)` takes that card off the list. Accepted users then appear on the Connections page.
 
 ### UserCard
 
@@ -228,7 +227,7 @@ The Redux store has four slices:
 | `connections` | `addConnections` | `Connections.jsx` | Saves the list from `GET /user/connections` |
 | `connections` | `removeConnections` | — | Clears the list (not called yet; should be on logout) |
 | `request` | `addRequest` | `Requests.jsx` | Saves the list from `GET /user/request/received` |
-| `request` | `removeRequest` | — | Clears the list (not called yet; should be on logout) |
+| `request` | `removeRequest` | `Requests.jsx` | Removes one request by `_id` after Accept / Reject |
 
 ## Backend API
 
@@ -243,7 +242,7 @@ From the [backend](../Devtinder/README.md). 🔒 = needs the `token` cookie set 
 | PATCH 🔒 ✅ | `/profile/edit` | Update `firstName`, `lastName`, `photoUrl`, `age`, `gender`, `about`, `skills` |
 | PATCH 🔒 | `/profile/password` | Change password |
 | POST 🔒 ✅ | `/request/send/:status/:touserId` | Send a request (`interested` / `ignored`) |
-| POST 🔒 | `/request/review/:status/:requestId` | Review a request (`accepted` / `rejected`) — buttons are on the Requests page, not wired up yet |
+| POST 🔒 ✅ | `/request/review/:status/:requestId` | Review a request (`accepted` / `rejected`) — Accept / Reject on the Requests page |
 | GET 🔒 ✅ | `/user/request/received` | Pending requests sent to you, with the sender's profile in `fromUserId` (same fields as connections) |
 | GET 🔒 ✅ | `/user/connections` | Accepted connections: the other user's `firstName`, `lastName`, `photoUrl`, `about`, `age`, `gender`, `skills` |
 | GET 🔒 ✅ | `/feed` | Developers to browse (supports `?page=` and `?limit=`, max 50) |
@@ -266,6 +265,8 @@ From the [backend](../Devtinder/README.md). 🔒 = needs the `token` cookie set 
 | "Objects are not valid as a React child" | You're rendering a whole object, e.g. `{connection}`. Render its fields instead (`{connection.firstName}`) |
 | Requests page stuck on the spinner | Check the imports: `axios`, `BASE_URL`, `useSelector` and the slice action (`addRequest`, not `addRequests`) |
 | Request cards show no name or photo | The user is in `request.fromUserId`, not on `request` itself. The backend must populate `fromUserId` with `USER_saFE_DATA`, not just `firstName` / `lastName` |
+| Accept / Reject returns **404** with no JSON message | The URL is wrong, e.g. `/request/reviewaccepted/…` (missing `/`). It must be `/request/review/<status>/<requestId>` |
+| Accept / Reject returns **404** "connection request not found" | The request was already reviewed, isn't addressed to you, or you passed the sender's user id instead of `request._id` |
 | Some connections missing or crash on `undefined` | The `.map()` in `GET /user/connections` must `return` the other user in both branches |
 | Default photo / About doesn't show for an existing user | Schema defaults only apply when a field is missing. An empty string or a fake URL is stored as-is, and a misspelled field (e.g. `abbout`) is ignored. Fix the data in MongoDB, e.g. `db.users.updateMany({ abbout: { $exists: true } }, { $rename: { abbout: "about" } })` |
 | "connection request already sent" | You already acted on that developer; refresh to get an up-to-date feed |
@@ -291,7 +292,7 @@ From the [backend](../Devtinder/README.md). 🔒 = needs the `token` cookie set 
 - [ ] Edit skills on the profile page
 - [x] Connections page with a grid of cards
 - [x] Connection requests page (`/requests`)
-- [ ] Wire up Accept / Reject on the Requests page
-- [ ] Clear connections and requests on logout (`removeConnections`, `removeRequest`)
+- [x] Wire up Accept / Reject on the Requests page
+- [ ] Clear connections and requests on logout (`removeConnections`, plus a new clear-all action for `request`)
 - [ ] Load the next page of the feed when it runs out (`?page=`)
 - [ ] Replace the placeholder footer text and page title
