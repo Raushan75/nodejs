@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const connectionRequestschema = new mongoose.Schema(
+const connectionRequestSchema = new mongoose.Schema(
   {
     fromUserId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -24,10 +24,13 @@ const connectionRequestschema = new mongoose.Schema(
     timestamps: true,
   },
 );
-// connectionRquestSchema.index({ fromUserId: 1, toUserId: 1 }, { unique: true });
-connectionRequestschema.index({ fromUserId :1, toUserId:1 });
+// One request per pair (in this direction). The database enforces it, so two
+// requests sent at the same moment can't both be saved.
+connectionRequestSchema.index({ fromUserId: 1, toUserId: 1 }, { unique: true });
+// used by the "requests received" and "connections" lists
+connectionRequestSchema.index({ toUserId: 1, status: 1 });
 
-connectionRequestschema.pre("save", async function () {
+connectionRequestSchema.pre("save", async function () {
   const connectionRequest = this;
 
   // check if the fromuserId is same as toUserId
@@ -38,6 +41,6 @@ connectionRequestschema.pre("save", async function () {
 
 const ConnectionRequest = mongoose.model(
   "ConnectionRequest",
-  connectionRequestschema,
+  connectionRequestSchema,
 );
 module.exports = ConnectionRequest;

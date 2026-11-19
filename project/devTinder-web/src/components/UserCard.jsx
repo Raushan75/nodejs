@@ -8,6 +8,7 @@ import {
   handleImageError,
 } from "../libs/utils/constants";
 import { removeUserFromFeed } from "../libs/utils/feedSlice";
+import useToast from "../libs/utils/useToast";
 
 // How far (px) the card must be dragged before letting go counts as a swipe.
 const SWIPE_THRESHOLD = 100;
@@ -24,7 +25,7 @@ const UserCard = ({ user, stretch = false, label, showActions = true }) => {
   const { _id, firstName, lastName, photoUrl, age, gender, about, skills } = user;
   const dispatch = useDispatch();
   const [sending, setSending] = useState(false);
-  const [error, setError] = useState("");
+  const toast = useToast();
 
   // swipe state: how far the card is dragged sideways, and whether a finger/mouse is down
   const [dragX, setDragX] = useState(0);
@@ -35,7 +36,6 @@ const UserCard = ({ user, stretch = false, label, showActions = true }) => {
   const sendRequest = async (status) => {
     if (sending) return;
     const direction = status === "interested" ? 1 : -1;
-    setError("");
     setSending(true);
     // fly the card off the screen while the request is sent
     setDragX(direction * (window.innerWidth + 200));
@@ -50,10 +50,15 @@ const UserCard = ({ user, stretch = false, label, showActions = true }) => {
       ]);
       // the next user in the feed replaces this card
       dispatch(removeUserFromFeed(_id));
+      if (status === "interested") {
+        toast.success(`Request sent to ${firstName || "this developer"}`);
+      } else {
+        toast.info(`You ignored ${firstName || "this developer"}`);
+      }
     } catch (err) {
       // bring the card back and show what went wrong
       setDragX(0);
-      setError(getErrorMessage(err));
+      toast.error(getErrorMessage(err));
       setSending(false);
     }
   };
@@ -174,8 +179,6 @@ const UserCard = ({ user, stretch = false, label, showActions = true }) => {
             ))}
           </div>
         )}
-
-        {error && <p className="text-error text-sm">{error}</p>}
 
         {showActions && (
           <div className="card-actions grid grid-cols-2 gap-3 mt-2">

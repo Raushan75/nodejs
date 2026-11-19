@@ -2,23 +2,24 @@ import { useState } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
 import { BASE_URL, getErrorMessage } from "../libs/utils/constants";
+import useToast from "../libs/utils/useToast";
 
 // Step 1 of forgot-password: ask for the email and send a reset link.
 const ForgotPassword = () => {
   const [emailId, setEmailId] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const toast = useToast();
   const [message, setMessage] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
     setLoading(true);
     try {
       const res = await axios.post(BASE_URL + "/forgot-password", { emailId });
       setMessage(res.data.message);
+      toast.success("Reset link sent. Check your email.");
     } catch (err) {
-      setError(getErrorMessage(err));
+      toast.error(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -66,12 +67,6 @@ const ForgotPassword = () => {
                   required
                 />
               </label>
-
-              {error && (
-                <div role="alert" className="alert alert-error alert-soft text-sm">
-                  <span>{error}</span>
-                </div>
-              )}
 
               <button type="submit" className="btn btn-primary w-full" disabled={loading}>
                 {loading && <span className="loading loading-spinner loading-sm" />}

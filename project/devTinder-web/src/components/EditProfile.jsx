@@ -1,11 +1,13 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import axios from "axios";
 import { BASE_URL, getErrorMessage } from "../libs/utils/constants";
 import UserCard from "./UserCard";
 import { useDispatch } from "react-redux";
 import { addUser } from "../libs/utils/userSlice";
+import useToast from "../libs/utils/useToast";
 
-const ABOUT_MAX = 250;
+// same limit as the backend (models/user.js)
+const ABOUT_MAX = 500;
 
 const EditProfile = ({ user }) => {
   const [firstName, setFirstName] = useState(user.firstName || "");
@@ -14,22 +16,13 @@ const EditProfile = ({ user }) => {
   const [age, setAge] = useState(user.age || "");
   const [gender, setGender] = useState(user.gender || "");
   const [about, setAbout] = useState(user.about || "");
-  const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const [showToast, setShowToast] = useState(false);
 
   const dispatch = useDispatch();
-
-  // Hide the success toast after 3s, and clear the timer if the page unmounts.
-  useEffect(() => {
-    if (!showToast) return;
-    const timer = setTimeout(() => setShowToast(false), 3000);
-    return () => clearTimeout(timer);
-  }, [showToast]);
+  const toast = useToast();
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
-    setError("");
     setSaving(true);
     try {
       const res = await axios.patch(
@@ -45,9 +38,9 @@ const EditProfile = ({ user }) => {
         { withCredentials: true },
       );
       dispatch(addUser(res.data?.data));
-      setShowToast(true);
+      toast.success("Profile updated successfully");
     } catch (err) {
-      setError(getErrorMessage(err));
+      toast.error(getErrorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -151,12 +144,6 @@ const EditProfile = ({ user }) => {
                 </span>
               </label>
 
-              {error && (
-                <div role="alert" className="alert alert-error alert-soft">
-                  <span>{error}</span>
-                </div>
-              )}
-
               <button
                 type="submit"
                 className="btn btn-primary w-full"
@@ -177,14 +164,6 @@ const EditProfile = ({ user }) => {
           />
         </div>
       </div>
-
-      {showToast && (
-        <div className="toast toast-top toast-center z-50">
-          <div className="alert alert-success">
-            <span>Profile updated successfully.</span>
-          </div>
-        </div>
-      )}
     </>
   );
 };

@@ -1,27 +1,35 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/user");
 
+// Turns a login token into the user it belongs to.
+// Throws an Error with a user-friendly message when the token can't be used.
+// Shared by the HTTP middleware below and the chat socket (utils/socket.js).
+const getUserFromToken = async (token) => {
+  if (!token) throw new Error("Please login first");
+
+  let payload;
+  try {
+    payload = jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    // invalid or expired token
+    throw new Error("Session expired, please login again");
+  }
+
+  const user = await User.findById(payload._id);
+  if (!user) throw new Error("User not found, please login again");
+  if (user.tokenIssuedBeforePasswordChange(payload.iat)) {
+    throw new Error("Your password was changed, please login again");
+  }
+  return user;
+};
+
 const userAuth = async (req, res, next) => {
   try {
-    const { token } = req.cookies;
-
-    if (!token) {
-      return res.status(401).send("Please login first");
-    }
-
-    const { _id } = jwt.verify(token, process.env.JWT_SECRET);
-
-    const user = await User.findById(_id);
-    if (!user) {
-      return res.status(401).send("User not found, please login again");
-    }
-
-    req.user = user;
+    req.user = await getUserFromToken(req.cookies.token);
     next();
   } catch (error) {
-    // invalid or expired token
-    res.status(401).send("Session expired, please login again");
+    res.status(401).send(error.message);
   }
 };
 
-module.exports = { userAuth };
+module.exports = { userAuth, getUserFromToken };

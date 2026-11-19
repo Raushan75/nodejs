@@ -4,17 +4,17 @@ const PASSWORD_RULES =
   "Password must be at least 8 characters with an uppercase letter, a lowercase letter, a number and a symbol";
 
 const validatePassword = (password) => {
-  if (!password || !validator.isStrongPassword(password)) {
+  if (typeof password !== "string" || !validator.isStrongPassword(password)) {
     throw new Error(PASSWORD_RULES);
   }
 };
 
 const validateSingupData = (req) => {
   const { firstName, emailId, password } = req.body;
-  if (!firstName || firstName.trim().length < 2) {
+  if (typeof firstName !== "string" || firstName.trim().length < 2) {
     throw new Error("First name must be at least 2 characters");
   }
-  if (!emailId || !validator.isEmail(emailId)) {
+  if (typeof emailId !== "string" || !validator.isEmail(emailId)) {
     throw new Error("Email is not valid");
   }
   validatePassword(password);

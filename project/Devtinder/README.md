@@ -106,7 +106,9 @@ All errors are returned as plain text with a 4xx/5xx status.
 | ------ | ---- | ---- | ----------- |
 | GET | `/profile/view` | — | The logged-in user |
 | PATCH | `/profile/edit` | Any of `firstName`, `lastName`, `photoUrl`, `about`, `skills`, `gender`, `age` | Update the profile. Other fields are rejected. Empty `age` / `gender` clears them |
-| PATCH | `/profile/forgot-password` | `password` | Change the password of the logged-in user |
+| PATCH | `/profile/password` | `currentPassword`, `newPassword` | Change the password of the logged-in user. Needs the current password; logs out all other sessions |
+| GET | `/chat/:targetUserId` | - | Last 100 messages with a connection, plus their name and photo |
+| POST | `/ai/chat` | `messages: [{ role, content }]` | AI assistant reply (Claude). Needs `ANTHROPIC_API_KEY`; max 20 requests per user per 10 min |
 
 ### Connection requests 🔒
 
@@ -331,3 +333,16 @@ For the frontend, see [DevTinder-web → Redeploy after a change](../devTinder-w
 
 - Keep `.env` out of git. The MongoDB connection string used to be written in `src/config/database.js`, so it is still in the git history: **change that database user's password** in MongoDB Atlas and update `MONGODB_URI`.
 - Use a long random `JWT_SECRET` in production, and serve over HTTPS (then add `secure: true` to the cookie options in `routes/auth.js`).
+
+## Real-time chat (Socket.io)
+
+Connected users (accepted requests) can chat live. The socket runs on the same port as the API at path `/socket.io` (the frontend reaches it as `/api/socket.io` through Nginx or the Vite proxy). The user is identified from the login cookie, never from data the browser sends.
+
+| Event (client → server) | Data | Reply |
+|---|---|---|
+| `joinChat` | `{ targetUserId }` | `{ ok: true }` or `{ error }` |
+| `sendMessage` | `{ targetUserId, text }` (1-1000 chars) | `{ ok: true }` or `{ error }`; both users get `messageReceived` with the saved message |
+
+## AI assistant
+
+`POST /ai/chat` calls Claude (`claude-opus-5-5`) through the official `@anthropic-ai/sdk`. Add `ANTHROPIC_API_KEY=...` to `.env` (create a key at console.anthropic.com) and restart. Without a key, the assistant replies "not set up" and the rest of the app works normally.

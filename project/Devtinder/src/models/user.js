@@ -6,6 +6,9 @@ const jwt = require("jsonwebtoken");
 const DEFAULT_PHOTO_URL =
   "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png";
 const DEFAULT_ABOUT = "This is a default description";
+const ABOUT_MAX = 500;
+const SKILLS_MAX = 10;
+const SKILL_MAX_LENGTH = 30;
 
 const userSchema = new mongoose.Schema(
   {
@@ -69,17 +72,31 @@ const userSchema = new mongoose.Schema(
     about: {
       type: String,
       trim: true,
-      maxLength: 500,
+      maxLength: ABOUT_MAX,
       default: DEFAULT_ABOUT,
-      set: (value) => (value && value.trim() ? value : DEFAULT_ABOUT),
+      set: (value) =>
+        typeof value === "string" && value.trim() ? value : DEFAULT_ABOUT,
     },
     skills: {
-      type: [String],
+      type: [{ type: String, trim: true }],
       default: [],
+      validate: [
+        {
+          validator: (value) => value.length <= SKILLS_MAX,
+          message: `You can add at most ${SKILLS_MAX} skills`,
+        },
+        {
+          validator: (value) =>
+            value.every((s) => s && s.length <= SKILL_MAX_LENGTH),
+          message: `Each skill must be 1-${SKILL_MAX_LENGTH} characters`,
+        },
+      ],
     },
     // forgot-password: SHA-256 hash of the emailed reset token, and when it stops working
     passwordResetToken: String,
     passwordResetExpires: Date,
+    // tokens issued before this time are rejected (logs out other sessions after a password change)
+    passwordChangedAt: Date,
   },
   {
     timestamps: true,
@@ -89,6 +106,7 @@ const userSchema = new mongoose.Schema(
         delete ret.password;
         delete ret.passwordResetToken;
         delete ret.passwordResetExpires;
+        delete ret.passwordChangedAt;
         delete ret.__v;
         return ret;
       },
@@ -104,6 +122,20 @@ userSchema.methods.getJWT = function () {
 
 userSchema.methods.validatePassword = function (passwordInputByUser) {
   return bcrypt.compare(passwordInputByUser, this.password);
+};
+
+// Hash and store a new password, and mark every older login token as invalid.
+userSchema.methods.setPassword = async function (newPassword) {
+  this.password = await bcrypt.hash(newPassword, 10);
+  // JWT "iat" is in whole seconds, so round down: a token issued right after
+  // this (e.g. the new cookie for the current session) still counts as newer.
+  this.passwordChangedAt = new Date(Math.floor(Date.now() / 1000) * 1000);
+};
+
+// true if the token was issued before the last password change
+userSchema.methods.tokenIssuedBeforePasswordChange = function (tokenIat) {
+  if (!this.passwordChangedAt) return false;
+  return tokenIat * 1000 < this.passwordChangedAt.getTime();
 };
 
 module.exports = mongoose.model("User", userSchema);

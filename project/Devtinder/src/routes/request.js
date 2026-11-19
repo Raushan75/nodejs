@@ -48,6 +48,10 @@ requestsRouter.post(
 
       res.json({ message: "Connection request sent successfully", data });
     } catch (error) {
+      // unique index hit: the same request was sent twice at the same time
+      if (error.code === 11000) {
+        return res.status(400).send("Connection request already exists");
+      }
       res.status(400).send(error.message);
     }
   },

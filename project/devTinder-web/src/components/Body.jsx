@@ -1,11 +1,13 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
+import AiAssistant from "./AiAssistant";
 import { BASE_URL } from "../libs/utils/constants";
 import axios from "axios";
 import { useDispatch, useSelector } from "react-redux";
 import { addUser } from "../libs/utils/userSlice";
 import { useEffect, useState } from "react";
+import useToast from "../libs/utils/useToast";
 
 // Pages anyone can open without logging in (matched by path prefix)
 const PUBLIC_ROUTES = ["/login", "/forgot-password", "/reset-password/"];
@@ -15,6 +17,7 @@ const Body = () => {
   const location = useLocation();
   const user = useSelector((store) => store.user);
   const [checkingAuth, setCheckingAuth] = useState(!user);
+  const toast = useToast();
 
   useEffect(() => {
     if (user) return; // already logged in
@@ -25,8 +28,11 @@ const Body = () => {
           withCredentials: true,
         });
         dispatch(addUser(res.data));
-      } catch {
-        // no valid token cookie: the user is not logged in
+      } catch (err) {
+        // a 401 just means "not logged in"; no response at all means the server is down
+        if (!err?.response) {
+          toast.error("Cannot reach the server. Please try again later.");
+        }
       } finally {
         setCheckingAuth(false);
       }
@@ -67,6 +73,7 @@ const Body = () => {
         <Outlet />
       </main>
       <Footer />
+      {user && <AiAssistant />}
     </div>
   );
 };

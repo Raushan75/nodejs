@@ -5,6 +5,7 @@ const { validateSingupData, validatePassword } = require("../utils/validation");
 const bcrypt = require("bcrypt");
 const User = require("../models/user");
 const { sendEmail } = require("../utils/sendEmail");
+const { COOKIE_OPTIONS } = require("../utils/cookieOptions");
 
 const RESET_TOKEN_MINUTES = 15;
 
@@ -12,13 +13,15 @@ const RESET_TOKEN_MINUTES = 15;
 const hashToken = (token) =>
   crypto.createHash("sha256").update(token).digest("hex");
 
+// user-entered text going into an HTML email must not be able to add tags/links
+const escapeHtml = (text = "") =>
+  String(text).replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+  );
+
 const authRouter = express.Router();
 
-const COOKIE_OPTIONS = {
-  httpOnly: true,
-  sameSite: "lax",
-  maxAge: 24 * 60 * 60 * 1000, // 1 day, same as the JWT
-};
 
 authRouter.post("/signup", async (req, res) => {
   try {
@@ -46,6 +49,10 @@ authRouter.post("/signup", async (req, res) => {
     res.cookie("token", savedUser.getJWT(), COOKIE_OPTIONS);
     res.json({ message: "User created successfully", data: savedUser });
   } catch (err) {
+    // unique email index hit: two sign-ups with the same email at the same moment
+    if (err.code === 11000) {
+      return res.status(400).send("An account with this email already exists");
+    }
     res.status(400).send(err.message);
   }
 });
@@ -53,7 +60,8 @@ authRouter.post("/signup", async (req, res) => {
 authRouter.post("/login", async (req, res) => {
   try {
     const { emailId, password } = req.body;
-    if (!emailId || !password) {
+    // typeof check: a non-string (e.g. {"$ne": ""}) would crash toLowerCase()
+    if (typeof emailId !== "string" || typeof password !== "string" || !emailId || !password) {
       return res.status(400).send("Email and password are required");
     }
 
@@ -80,7 +88,7 @@ authRouter.post("/forgot-password", async (req, res) => {
     "If an account exists for this email, a password reset link has been sent.";
   try {
     const { emailId } = req.body;
-    if (!emailId || !validator.isEmail(emailId)) {
+    if (typeof emailId !== "string" || !validator.isEmail(emailId)) {
       return res.status(400).send("Please enter a valid email");
     }
 
@@ -107,7 +115,7 @@ authRouter.post("/forgot-password", async (req, res) => {
           `${resetUrl}\n\n` +
           `If you didn't ask for this, you can ignore this email.`,
         html:
-          `<p>Hi ${user.firstName},</p>` +
+          `<p>Hi ${escapeHtml(user.firstName)},</p>` +
           `<p><a href="${resetUrl}">Click here to choose a new password</a>. ` +
           `The link works for ${RESET_TOKEN_MINUTES} minutes.</p>` +
           `<p>If you didn't ask for this, you can ignore this email.</p>`,
@@ -143,7 +151,8 @@ authRouter.post("/reset-password/:token", async (req, res) => {
         .send("This reset link is invalid or has expired. Please request a new one.");
     }
 
-    user.password = await bcrypt.hash(password, 10);
+    // also logs out every existing session of this user
+    await user.setPassword(password);
     // the link works only once
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;

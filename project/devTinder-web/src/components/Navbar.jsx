@@ -2,6 +2,7 @@ import axios from "axios";
 import { useDispatch, useSelector } from "react-redux";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { removeUser } from "../libs/utils/userSlice";
+import useToast from "../libs/utils/useToast";
 import {
   BASE_URL,
   FALLBACK_PHOTO,
@@ -18,12 +19,15 @@ const Navbar = () => {
   const user = useSelector((store) => store.user);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const toast = useToast();
 
   const handleLogout = async () => {
     try {
       await axios.post(BASE_URL + "/logout", {}, { withCredentials: true });
+      toast.info("You've been logged out");
     } catch (err) {
       console.error("Error logging out:", err);
+      toast.warning("Logged out on this device, but the server couldn't be reached");
     } finally {
       // clear the user (and, through the slices, their feed/requests/connections)
       dispatch(removeUser());

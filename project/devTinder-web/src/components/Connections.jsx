@@ -9,11 +9,13 @@ import {
   handleImageError,
 } from "../libs/utils/constants";
 import { addConnections } from "../libs/utils/connectionsSlice";
+import useToast from "../libs/utils/useToast";
 
 const Connections = () => {
   const connections = useSelector((store) => store.connections);
   const dispatch = useDispatch();
   const [error, setError] = useState("");
+  const toast = useToast();
 
   const fetchConnections = async () => {
     try {
@@ -23,7 +25,9 @@ const Connections = () => {
       setError("");
       dispatch(addConnections(res.data.data));
     } catch (err) {
-      setError(getErrorMessage(err));
+      const message = getErrorMessage(err);
+      setError(message);
+      toast.error(message);
     }
   };
 
@@ -89,7 +93,7 @@ const Connections = () => {
                 alt={`${firstName} ${lastName || ""}`}
                 onError={handleImageError}
               />
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <h2 className="text-xl font-semibold">
                   {firstName} {lastName}
                 </h2>
@@ -102,6 +106,9 @@ const Connections = () => {
                   {about || "No description available."}
                 </p>
               </div>
+              <Link to={"/chat/" + _id} className="btn btn-primary btn-sm shrink-0">
+                💬 Chat
+              </Link>
             </div>
           ),
         )}

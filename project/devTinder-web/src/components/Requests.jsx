@@ -9,12 +9,14 @@ import {
 } from "../libs/utils/constants";
 import { addRequest, removeRequest } from "../libs/utils/requestSlice";
 import { removeConnections } from "../libs/utils/connectionsSlice";
+import useToast from "../libs/utils/useToast";
 
 function Requests() {
   const requests = useSelector((store) => store.request);
   const dispatch = useDispatch();
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState(null);
+  const toast = useToast();
 
   const fetchRequests = async () => {
     try {
@@ -24,12 +26,13 @@ function Requests() {
       setError("");
       dispatch(addRequest(res.data.data));
     } catch (err) {
-      setError(getErrorMessage(err));
+      const message = getErrorMessage(err);
+      setError(message);
+      toast.error(message);
     }
   };
 
-  const reviewRequest = async (status, requestId) => {
-    setError("");
+  const reviewRequest = async (status, requestId, name) => {
     setBusyId(requestId);
     try {
       await axios.post(
@@ -39,9 +42,14 @@ function Requests() {
       );
       dispatch(removeRequest(requestId));
       // a new connection exists now, so reload the list next time it's opened
-      if (status === "accepted") dispatch(removeConnections());
+      if (status === "accepted") {
+        dispatch(removeConnections());
+        toast.success(`You're now connected with ${name}`);
+      } else {
+        toast.info(`Request from ${name} rejected`);
+      }
     } catch (err) {
-      setError(getErrorMessage(err));
+      toast.error(getErrorMessage(err));
     } finally {
       setBusyId(null);
     }
@@ -92,12 +100,6 @@ function Requests() {
         to connect with you
       </p>
 
-      {error && (
-        <div role="alert" className="alert alert-error alert-soft mb-6">
-          <span>{error}</span>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {requests.map((request) => {
           // the sender's profile is in fromUserId
@@ -135,14 +137,14 @@ function Requests() {
                 <button
                   className="btn btn-outline"
                   disabled={busy}
-                  onClick={() => reviewRequest("rejected", _id)}
+                  onClick={() => reviewRequest("rejected", _id, firstName)}
                 >
                   Reject
                 </button>
                 <button
                   className="btn btn-primary"
                   disabled={busy}
-                  onClick={() => reviewRequest("accepted", _id)}
+                  onClick={() => reviewRequest("accepted", _id, firstName)}
                 >
                   {busy && <span className="loading loading-spinner loading-sm" />}
                   Accept

@@ -4,6 +4,7 @@ import { useDispatch } from "react-redux";
 import { addUser } from "../libs/utils/userSlice";
 import { Link, useNavigate } from "react-router-dom";
 import { BASE_URL, getErrorMessage } from "../libs/utils/constants";
+import useToast from "../libs/utils/useToast";
 
 const Login = () => {
   const [emailId, setEmail] = useState("");
@@ -11,16 +12,15 @@ const Login = () => {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [isLoginForm, setIsLoginForm] = useState(true);
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const toast = useToast();
 
   // a real <form> so pressing Enter submits
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
     setLoading(true);
     try {
       if (isLoginForm) {
@@ -30,6 +30,7 @@ const Login = () => {
           { withCredentials: true },
         );
         dispatch(addUser(res.data));
+        toast.success(`Welcome back, ${res.data?.firstName || "developer"}!`);
         navigate("/");
       } else {
         const res = await axios.post(
@@ -38,10 +39,11 @@ const Login = () => {
           { withCredentials: true },
         );
         dispatch(addUser(res.data.data));
+        toast.success("Account created! Complete your profile.");
         navigate("/profile");
       }
     } catch (err) {
-      setError(getErrorMessage(err));
+      toast.error(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -49,7 +51,6 @@ const Login = () => {
 
   const toggleForm = () => {
     setIsLoginForm(!isLoginForm);
-    setError("");
   };
 
   return (
@@ -134,12 +135,6 @@ const Login = () => {
               </span>
             )}
           </label>
-
-          {error && (
-            <div role="alert" className="alert alert-error alert-soft text-sm">
-              <span>{error}</span>
-            </div>
-          )}
 
           <button
             type="submit"
