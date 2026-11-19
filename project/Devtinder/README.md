@@ -11,13 +11,14 @@ The frontend is in [`../devTinder-web`](../devTinder-web/README.md).
 ### 1. Install
 
 ```bash
-cd project/Devtinder
+git clone https://github.com/Raushan75/DevTinder.git
+cd DevTinder
 npm install
 ```
 
 ### 2. Create the `.env` file
 
-Create `Devtinder/.env` (it is git-ignored, never commit it):
+Create `DevTinder/.env` (it is git-ignored, never commit it, and `git pull` never brings it):
 
 ```env
 # required
@@ -147,13 +148,180 @@ curl -H "Content-Type: application/json" \
   http://localhost:3000/forgot-password
 ```
 
+## Deployment (AWS EC2 · Red Hat Enterprise Linux)
+
+The app runs on an **AWS EC2** instance with **Red Hat Enterprise Linux (RHEL)**, using `dnf` as the package manager.
+
+### 1. Launch the instance
+
+1. AWS Console → **EC2 → Launch instance**.
+2. AMI: **Red Hat Enterprise Linux**. Instance type: `t2.micro` / `t3.micro` (free tier).
+3. Create (or pick) a **key pair** and download the `.pem` file.
+4. **Security group** inbound rules:
+
+   | Type | Port | Source | Why |
+   | ---- | ---- | ------ | --- |
+   | SSH | 22 | My IP | Log in to the server |
+   | HTTP | 80 | Anywhere | Frontend (nginx) |
+   | Custom TCP | 3000 | Anywhere | Not needed when nginx proxies `/api` to the backend (the default setup) |
+
+### 2. Connect over SSH
+
+```bash
+# the key must be readable only by you, or ssh refuses it
+chmod 400 devtinder-key.pem
+
+# RHEL's default user is ec2-user
+ssh -i devtinder-key.pem ec2-user@<EC2-PUBLIC-IP>
+```
+
+On Windows, run these in Git Bash or WSL (or use PuTTY with a `.ppk` key).
+
+### 3. Install Node.js and Git
+
+```bash
+sudo dnf update -y
+sudo dnf install -y git nodejs     # nodejs includes npm
+node -v && npm -v && git --version
+```
+
+If `node -v` is older than you need (the frontend's Vite needs 20.19+), install Node 20.19.0 with NVM or the official binary — see [DevTinder-web → Deployment, step 2](../devTinder-web/README.md#2-install-nodejs-2019).
+
+### 4. Get the code
+
+```bash
+cd ~
+git clone https://github.com/Raushan75/DevTinder.git
+cd DevTinder
+npm install
+```
+
+### 5. Create the `.env` on the server
+
+`.env` is git-ignored, so it is **not** in the repo: create it once on the server. Without it you get `MONGODB_URI is missing in the .env file`.
+
+`nano` is not installed by default on EC2. Install it, or use `vi`:
+
+```bash
+sudo dnf install -y nano
+nano .env           # save: Ctrl+O, Enter · exit: Ctrl+X
+# or
+vi .env             # i = type, Esc then :wq + Enter = save and quit
+```
+
+Or write it without an editor (replace the values first):
+
+```bash
+cat > .env << 'EOF'
+MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/devTinder
+JWT_SECRET=a-long-random-secret-string
+CLIENT_URL=http://<EC2-PUBLIC-IP>
+PORT=3000
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_USER=youraddress@gmail.com
+SMTP_PASS=your-16-character-app-password
+EMAIL_FROM=DevTinder <youraddress@gmail.com>
+EOF
+```
+
+Then protect and check it:
+
+```bash
+chmod 600 .env      # only your user can read it
+cat .env
+```
+
+In **MongoDB Atlas → Network Access**, allow the EC2 instance's public IP, otherwise you get `database connection failed`.
+
+### 6. Start the backend with PM2
+
+[PM2](https://pm2.keymetrics.io/) keeps the API running after you close SSH, restarts it if it crashes, and starts it again after a reboot.
+
+```bash
+# install once (globally)
+sudo npm install -g pm2
+pm2 -v
+
+# start — run this from inside DevTinder/, because .env is read from the current folder
+cd ~/DevTinder
+pm2 start src/app.js --name devtinder-api
+
+# keep it alive after a reboot
+pm2 save
+pm2 startup          # copy and run the `sudo env PATH=...` command it prints
+pm2 save
+```
+
+Check it: `curl http://localhost:3000/feed` should reply `401` (it needs a login), which means the server is up.
+
+#### PM2 commands
+
+| Command | What it does |
+| ------- | ------------ |
+| `pm2 list` | Show all apps and their status (`online`, `errored`, `stopped`) |
+| `pm2 logs devtinder-api` | Live logs (`Ctrl+C` to exit) |
+| `pm2 logs devtinder-api --lines 100` | Last 100 log lines |
+| `pm2 flush` | Clear all log files |
+| `pm2 restart devtinder-api` | Restart (after `git pull`) |
+| `pm2 restart devtinder-api --update-env` | Restart and reload changed environment variables |
+| `pm2 stop devtinder-api` | Stop the app (stays in the list) |
+| `pm2 start devtinder-api` | Start a stopped app again |
+| `pm2 delete devtinder-api` | Stop and remove it from PM2 |
+| `pm2 describe devtinder-api` | Details: script path, working folder, restarts, uptime |
+| `pm2 monit` | Live CPU / memory dashboard |
+| `pm2 save` | Remember the current app list for reboots |
+| `pm2 unstartup` | Turn off start-on-boot |
+
+If you changed `.env`, run `pm2 restart devtinder-api` so the app reads the new values.
+
+### 7. Deploy the frontend
+
+The frontend is deployed on the same server with Nginx — the full, tested steps are in [DevTinder-web → Deployment](../devTinder-web/README.md#deployment-aws-ec2--red-hat-linux--nginx).
+
+Nginx forwards `/api/*` to this backend and strips the prefix (`/api/feed` → `http://localhost:3000/feed`), so the routes here stay unchanged. The config is in [DevTinder-web → step 6](../devTinder-web/README.md#6-configure-nginx-react-routes--api-proxy). Before building the frontend, set `BASE_URL` in `src/libs/utils/constants.js` to `"/api"`, and in this `.env` set `CLIENT_URL=http://<EC2-PUBLIC-IP>`.
+
+Check the proxy from the server:
+
+```bash
+curl http://localhost:3000/feed     # backend directly
+curl http://localhost/api/feed      # through nginx: same response = proxy works
+```
+
+### RHEL specifics
+
+| Topic | Command / note |
+| ----- | -------------- |
+| SELinux blocks nginx → Node (`502 Bad Gateway`) | `sudo setsebool -P httpd_can_network_connect 1` |
+| `firewalld` (if enabled) | `sudo firewall-cmd --permanent --add-service=http && sudo firewall-cmd --reload` |
+| Package manager | `dnf` (not `apt`) |
+
+### Updating after a new commit
+
+```bash
+cd ~/DevTinder
+git pull
+npm install
+pm2 restart devtinder-api
+pm2 logs devtinder-api --lines 20    # check it started without errors
+```
+
+`git pull` never touches `.env`, so you don't need to recreate it.
+
+For the frontend, see [DevTinder-web → Redeploy after a change](../devTinder-web/README.md#redeploy-after-a-change).
+
 ## Troubleshooting
 
 | Problem | Fix |
 | ------- | --- |
-| `MONGODB_URI is missing in the .env file` | Create `.env` as shown above |
+| `MONGODB_URI is missing in the .env file` | Create `.env` as shown above. With PM2, the app must be started from inside `DevTinder/` (check with `pm2 describe devtinder-api` → `exec cwd`); if not, `pm2 delete devtinder-api`, `cd ~/DevTinder`, and start it again |
+| `nano: command not found` | `sudo dnf install -y nano`, or use `vi .env` |
+| `pm2: command not found` | `sudo npm install -g pm2` |
+| App shows `errored` in `pm2 list` | `pm2 logs devtinder-api --lines 50` to see the error |
+| API not running after reboot | Run `pm2 startup` (and the command it prints), then `pm2 save` |
 | `database connection failed` | Check `MONGODB_URI`, and that your IP is allowed in MongoDB Atlas → Network Access |
-| Frontend shows "Cannot reach the server" | The server isn't running, or isn't on the port in the frontend's `BASE_URL` |
+| Frontend shows "Cannot reach the server" | The server isn't running, or the frontend's `BASE_URL` is wrong (`"/api"` behind nginx, `http://localhost:3000` locally) |
+| `http://<EC2-IP>/api/...` gives `502 Bad Gateway` | Nginx can't reach Node. Check `pm2 list` and `curl http://localhost:3000/feed`. If the app shows `errored`, read `pm2 logs devtinder-api` (often `database connection failed`, which means the Atlas IP isn't allowed). If Node is up, run `sudo setsebool -P httpd_can_network_connect 1` |
 | CORS error in the browser | `CLIENT_URL` must exactly match the frontend address |
 | Everyone got logged out | `JWT_SECRET` changed, or the 1-day token expired |
 | `Cannot GET /<route>` after adding a route | An old server is still on port 3000 — stop it and restart |
